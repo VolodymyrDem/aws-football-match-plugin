@@ -189,17 +189,18 @@ function renderPing(p) {
     return;
   }
   const m = p.match, a = p.agents || [];
+  const hasMatch = !!(m && ((m.us || []).some(v => v != null) || (m.them || []).some(v => v != null)));
   const rows = POS.map((name, i) => {
     const ag = a.find(x => x.pos === i) || {};
-    return `<tr><td>${name}</td><td>${lat(m && m.us ? m.us[i] : null)}</td><td>${lat(m && m.them ? m.them[i] : null)}</td>
+    return `<tr><td>${name}</td>${hasMatch ? `<td>${lat(m.us ? m.us[i] : null)}</td><td>${lat(m.them ? m.them[i] : null)}</td>` : ""}
       <td>${lat(ag.latency_ms)}</td><td>${lat(ag.p99_latency_ms)}</td>
       <td>${ag.errors || ag.throttles ? `<span class="lat-bad">${(ag.errors || 0) + (ag.throttles || 0)}</span>` : `<span class="muted">0</span>`}</td></tr>`;
   }).join("");
   const mLine = m ? `Match vs ${esc(m.opp || "?")}${m.status === "in_progress" ? " (live)" : ""}: us ${m.usAvg ?? "—"} ms, them ${m.themAvg ?? "—"} ms` : "No match yet";
   const fetched = p.fetched ? new Date(p.fetched).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }) : "";
   el.innerHTML = `<div class="meta">${mLine}</div>
-    <table class="ping"><tr><th></th><th>match</th><th>opponent</th><th>recent</th><th>p99</th><th>err</th></tr>${rows}</table>
-    <div class="meta" style="margin-top:6px">ms · "recent" and p99 are the portal's figures${fetched ? ` at ${fetched}` : ""} (cached by the portal)</div>`;
+    <table class="ping"><tr><th></th>${hasMatch ? "<th>match</th><th>opponent</th>" : ""}<th>avg</th><th>p99</th><th>err</th></tr>${rows}</table>
+    <div class="meta" style="margin-top:6px">ms · avg and p99: our agents, portal figures for recent hours${fetched ? ` (${fetched})` : ""}${hasMatch ? "" : " · per-match figures come after full time"}</div>`;
 }
 const loadPing = () => chrome.runtime.sendMessage({ type: "popup-ping", matchId: (cur && cur.id) || null }, r => renderPing(r));
 chrome.storage.session.get("ping").then(x => renderPing(x.ping || null));

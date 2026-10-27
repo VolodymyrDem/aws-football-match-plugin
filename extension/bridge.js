@@ -420,8 +420,12 @@
         : `<span class="m">${H ? "not in the table" : "…"}</span>`;
       const vsUs = !H ? "…" : ms.length ? `<b class="${l > w ? "r" : l === w ? "o" : "g"}">${pct(l, ms.length)}%</b> <span class="m">(${l} of ${ms.length})</span>` : `<span class="m">never played</span>`;
       const ag = (PING && PING.agents) || [];
+      // 1.26: the portal fills the per-match figures (us / them) only after full time; until then
+      // those two columns are left out instead of showing dashes.
+      const hasMatch = !!(pm && ((pm.us || []).some(v => v != null) || (pm.them || []).some(v => v != null)));
       const rows = POSN.map((p, i) => { const a = ag.find(x => x.pos === i) || {};
-        return `<tr><td>${p}</td><td>${lat(pm && pm.us ? pm.us[i] : null)}</td><td>${lat(pm && pm.them ? pm.them[i] : null)}</td><td>${lat(a.latency_ms)}</td><td>${lat(a.p99_latency_ms)}</td></tr>`; }).join("");
+        return `<tr><td>${p}</td>${hasMatch ? `<td>${lat(pm.us ? pm.us[i] : null)}</td><td>${lat(pm.them ? pm.them[i] : null)}</td>` : ""}<td>${lat(a.latency_ms)}</td><td>${lat(a.p99_latency_ms)}</td></tr>`; }).join("");
+      const obsAt = PING && PING.fetched ? new Date(PING.fetched).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }) : "";
       const st = lastStatus;
       const recLine = st && st.n ? `<span class="${st.lastWall && Date.now() - st.lastWall < 8000 ? "g" : "o"}">● recording</span> ${Math.round(st.t || 0)} s · ${Number(st.n).toLocaleString("en-GB")} frames${st.t0 > 3 ? ` <span class="o">· from ${Math.round(st.t0)} s</span>` : ""}`
         : `<span class="m">recording waits for frames</span>`;
@@ -435,8 +439,9 @@
             <div class="kv"><span>Win rate vs us</span><span>${vsUs}</span></div>
             <div class="kv"><span>Our record vs them</span><span>${ms.length ? `<b class="${w > l ? "g" : w < l ? "r" : "o"}">${w}-${d}-${l}</b> <span class="m">· goals ${gf}:${ga}</span>` : "—"}</span></div>
             ${last ? `<div class="kv"><span>Last match</span><span>${last.us}:${last.them}${last.version ? ` <span class="m">(${E(last.version)})</span>` : ""}</span></div>` : ""}</div>
-          <div class="sec"><div class="lbl">ping, ms${pm && pm.status !== "completed" ? " · match figures after full time" : ""}</div>
-            <table><tr><th></th><th>us</th><th>them</th><th>recent</th><th>p99</th></tr>${rows}</table></div>
+          <div class="sec"><div class="lbl">our agents' ping, ms</div>
+            <table><tr><th></th>${hasMatch ? "<th>match</th><th>them</th>" : ""}<th title="average latency of our agents, portal figures">avg</th><th title="1 call in 100 is slower than this">p99</th></tr>${rows}</table>
+            <div class="m" style="font-size:11px;margin-top:4px">avg / p99: portal, recent hours${obsAt ? ` (${obsAt})` : ""}${!hasMatch && pm && pm.status !== "completed" ? " · this match's figures come after full time" : ""}</div></div>
           <div class="sec"><div class="lbl">plugin</div><div>${recLine}</div>
             <div>Auto-START: ${as}</div><div>Auto-accept: ${aa ? `<span class="g">on</span>` : `<span class="m">off</span>`}</div></div>
         </div>`;
