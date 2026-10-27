@@ -479,14 +479,14 @@
       .drk th{color:#64748b;font-weight:500;font-size:10.5px;text-align:right;padding:0 3px 2px;white-space:nowrap}
       .drk td{text-align:right;padding:2px 3px;border-top:1px solid #1f2937;white-space:nowrap}
       .drk th:first-child,.drk td:first-child{text-align:left}
-      #drk-strip{position:absolute;z-index:5;padding:10px 16px 12px;background:#11131cee;border:1px solid #22d3ee44;border-radius:10px;overflow:hidden;flex-direction:column}
-      #drk-strip .drk-cols{display:grid;grid-template-columns:minmax(220px,1.1fr) minmax(240px,1.3fr) minmax(250px,1fr);gap:22px;flex:1;min-height:0}
-      #drk-strip .drk-cols>div{min-height:0;overflow:hidden}
+      #drk-strip{position:relative;z-index:5;padding:10px 16px 12px;background:#11131cee;border:1px solid #22d3ee44;border-radius:10px;overflow:hidden;flex-direction:column}
+      #drk-strip .drk-cols{display:grid;grid-template-columns:minmax(220px,1.1fr) minmax(240px,1.3fr) minmax(250px,1fr);gap:22px;align-items:start}
+      #drk-strip .drk-cols>div{min-width:0}
       #drk-strip .drk-top{display:flex;align-items:center;gap:12px;margin-bottom:6px;color:#64748b;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.07em}
       #drk-strip .drk-top .sc{color:#f8fafc;font-size:18px;letter-spacing:0}
       #drk-strip .drk-top button{margin-left:auto;background:none;border:1px solid #334155;color:#94a3b8;border-radius:6px;cursor:pointer;font-size:10.5px;padding:1px 8px;text-transform:none;letter-spacing:0}
       #drk-strip .drk-mapc{display:flex;flex-direction:column;min-height:0}
-      #drk-strip .drk-mapc svg{flex:1 1 0;min-height:0;width:100%;height:100%;margin:0}
+      #drk-strip .drk-mapc svg{width:100%;height:190px;margin:0}
       #drk-strip .br{margin:2px 0 4px}
       .drk .lnk{color:#22d3ee;cursor:pointer;font-size:11px}`;
     const lat = v => v == null ? `<span class="m">—</span>` : `<span class="${v < 300 ? "g" : v < 900 ? "o" : "r"}">${Math.round(v)}</span>`;
@@ -590,25 +590,45 @@
     let strip = null, stripOn = false, stripPref = true;
     try { stripPref = localStorage.getItem("__drk_strip") !== "0"; } catch (e) {}
     const gameCanvas = () => { let c = null, a = 0; for (const x of document.querySelectorAll("canvas")) { const r = x.getBoundingClientRect(), s2 = r.width * r.height; if (s2 > a) { a = s2; c = x; } } return a > 40000 ? c : null; };
+    // 1.40: the strip lives only inside the game's own frame (the bordered box around the picture, MuiBox
+    // css-1aisiqn on 27.10) — never above the side panel. Free space under the picture: it fills it (overlay);
+    // no space: it becomes the frame's last block and the frame grows by its height.
+    const gameFrame = c => {
+      let el = c.parentElement;
+      for (let i = 0; el && el !== document.body && i < 10; i++, el = el.parentElement) {
+        if (el.classList.contains("css-1aisiqn")) return el;
+        const cs = getComputedStyle(el), r = el.getBoundingClientRect();
+        if (parseFloat(cs.borderTopWidth) >= 2 && cs.borderTopStyle !== "none" && r.width < innerWidth * 0.85) return el;
+      }
+      return null;
+    };
     const placeStrip = () => {
       const off = () => { if (strip) strip.style.display = "none"; stripOn = false; };
       if (!mid || !stripPref || document.fullscreenElement) return off();
       const c = gameCanvas(); if (!c) return off();
-      const cr = c.getBoundingClientRect();
-      let fr = null, el = c.parentElement;
-      while (el && el !== document.body) { const r = el.getBoundingClientRect(); if (r.height >= cr.height + 180 && r.width >= cr.width * 0.95) { fr = el; break; } el = el.parentElement; }
+      const fr = gameFrame(c);
       if (!fr) return off();
-      const frr = fr.getBoundingClientRect(), space = frr.bottom - cr.bottom - 20;
-      if (space < 180) return off();
-      if (!strip || !strip.isConnected) {
+      if (!strip || !strip.isConnected || strip.parentElement !== fr) {
         for (const x of document.querySelectorAll("#drk-strip")) x.remove();   // left by a copy from before a reload
         strip = document.createElement("div"); strip.id = "drk-strip"; strip.className = "drk";
         strip.addEventListener("click", ev => { if (ev.target.closest("[data-side]")) { stripPref = false; try { localStorage.setItem("__drk_strip", "0"); } catch (e) {} placeStrip(); render(); } });
         fr.appendChild(strip);
+        // free space under the picture, measured once without the strip
+        const cr = c.getBoundingClientRect(), frr = fr.getBoundingClientRect();
+        strip.dataset.mode = frr.bottom - cr.bottom - 20 >= 180 ? "overlay" : "block";
       }
-      if (getComputedStyle(fr).position === "static") fr.style.position = "relative";
-      Object.assign(strip.style, { display: "flex", top: `${Math.round(cr.bottom - frr.top + 12)}px`, left: "24px", right: "24px",
-        height: `${Math.round(Math.min(space - 8, 320))}px` });
+      if (strip.dataset.mode === "overlay") {
+        const cr = c.getBoundingClientRect(), frr = fr.getBoundingClientRect(), space = frr.bottom - cr.bottom - 20;
+        if (space < 140) { strip.dataset.mode = "block"; return placeStrip(); }
+        if (getComputedStyle(fr).position === "static") fr.style.position = "relative";
+        Object.assign(strip.style, { display: "flex", position: "absolute", top: `${Math.round(cr.bottom - frr.top + 12)}px`, left: "24px", right: "24px",
+          height: "auto", maxHeight: `${Math.round(space - 8)}px`, margin: "0", flex: "" });
+      } else {
+        const cs = getComputedStyle(fr), row = cs.display.includes("flex") && !cs.flexDirection.startsWith("column");
+        if (row) fr.style.flexWrap = "wrap";
+        Object.assign(strip.style, { display: "flex", position: "relative", top: "", left: "", right: "", height: "auto", maxHeight: "",
+          margin: "12px 20px 16px", flex: row ? "0 0 calc(100% - 40px)" : "" });
+      }
       stripOn = true;
     };
     const stripHtml = () => {
