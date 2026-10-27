@@ -520,21 +520,28 @@
       .drk-badge{margin-left:12px;font:12px ui-monospace,SFMono-Regular,Menlo,monospace;color:#94a3b8;white-space:nowrap}
       .drk-badge b{font-weight:700}.drk-badge .g{color:#4ade80}.drk-badge .o{color:#fbbf24}.drk-badge .r{color:#f87171}
       .drk-badge .rk{color:#22d3ee;font-weight:700}`;
+    // 1.24: two win rates (the user's wish): overall, and how often they beat us; the full record
+    // goes into the tooltip.
     const badge = name => {
       const key = nb(name);
       const t = HB.lb && (HB.lb.teams || []).find(x => nb(x.name) === key);
-      const ms = Object.values(HB.matches || {}).filter(m => nb(m.opp) === key);
+      const ms = Object.values(HB.matches || {}).filter(m => nb(m.opp) === key)
+        .sort((a, b) => String(a.at).localeCompare(String(b.at)));
       if (!t && !ms.length) return null;
-      const parts = [];
+      const parts = [], tip = [name];
       if (t) {
         const wr = t.p ? Math.round(100 * t.w / t.p) : 0;
-        parts.push(`<span class="rk">#${t.rank}</span>`, `<b class="${wr >= 60 ? "r" : wr >= 45 ? "o" : "g"}">${wr}%</b>`);
+        parts.push(`<span class="rk">#${t.rank}</span>`, `WR <b class="${wr >= 60 ? "r" : wr >= 45 ? "o" : "g"}">${wr}%</b>`);
+        tip.push(`#${t.rank} of ${HB.lb.total || HB.lb.teams.length}, win rate ${wr}% (${t.w}-${t.d}-${t.l} of ${t.p})`);
       }
       if (ms.length) {
         const w = ms.filter(m => m.us > m.them).length, l = ms.filter(m => m.us < m.them).length, d = ms.length - w - l;
-        parts.push(`us <b class="${w > l ? "g" : w < l ? "r" : "o"}">${w}-${d}-${l}</b>`);
-      } else parts.push("never played");
-      return parts.join(" · ");
+        const gf = ms.reduce((a, m) => a + m.us, 0), ga = ms.reduce((a, m) => a + m.them, 0), last = ms[ms.length - 1];
+        const vs = Math.round(100 * l / ms.length);
+        parts.push(`vs us <b class="${vs >= 50 ? "r" : vs >= 25 ? "o" : "g"}">${vs}%</b>`);
+        tip.push(`vs us: they won ${l} of ${ms.length}; our record ${w}-${d}-${l}, goals ${gf}:${ga}, last ${last.us}:${last.them}`);
+      } else { parts.push("vs us —"); tip.push("never played us"); }
+      return { html: parts.join(" · "), title: tip.join("\n") };
     };
     const dialog = () => {
       const w = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
@@ -569,10 +576,10 @@
         const next = el.nextElementSibling;
         if (next && next.classList.contains("drk-badge") && next.dataset.team === nb(name)) continue;
         if (next && next.classList.contains("drk-badge")) next.remove();   // the row now shows another team
-        const html = badge(name);
-        if (!html) continue;
+        const bd = badge(name);
+        if (!bd) continue;
         const b = document.createElement("span");
-        b.className = "drk-badge"; b.dataset.team = nb(name); b.innerHTML = html;
+        b.className = "drk-badge"; b.dataset.team = nb(name); b.innerHTML = bd.html; b.title = bd.title;
         el.insertAdjacentElement("afterend", b);
       }
     }, 400);

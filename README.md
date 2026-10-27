@@ -5,7 +5,7 @@
 **Scout every opponent, never lose a match recording, and never miss a challenge in the Agentic Football Cup.**
 
 ![Chrome](https://img.shields.io/badge/Chrome-extension-4285F4?logo=googlechrome&logoColor=white)
-![Version](https://img.shields.io/badge/version-1.23-22d3ee)
+![Version](https://img.shields.io/badge/version-1.24-22d3ee)
 ![Manifest](https://img.shields.io/badge/Manifest-V3-6e56cf)
 ![Install](https://img.shields.io/badge/install-one%20command-4ade80)
 ![Privacy](https://img.shields.io/badge/data-stays%20on%20your%20Mac-94a3b8)
@@ -47,7 +47,7 @@ That's it. **To update, run the same command** and press ↻ on the extension's 
 | | |
 |---|---|
 | 🔍 **Scouting panel in the viewer** | The opponent's place in the table, win rate overall and **against you**, your record and goals, the last result — while the match is on. |
-| 🎯 **Smarter opponent picking** | Every team in *Find match* shows `#rank · win % · your record`, so you challenge the right teams. |
+| 🎯 **Smarter opponent picking** | Every team in *Find match* shows its rank, win rate overall and **win rate against you**, so you challenge the right teams. |
 | 📼 **Every match recorded** | Ball, all 10 players and their actions ~40× a second, the commentary, the portal's report and a screenshot of the final score — saved by themselves. |
 | 🔔 **Never miss a challenge** | A macOS notification and a card with **Accept** and a countdown. One click accepts and opens the viewer. |
 | ▶️ **Auto-START** | Presses the viewer's START screen for you. Optional, off by default. |
@@ -67,8 +67,10 @@ That's it. **To update, run the same command** and press ↻ on the extension's 
 Open **Find opponent** and every team already tells you how it stands:
 
 - `#24` — place in the tournament table
-- `43%` — their win rate (red from 60%, yellow from 45%)
-- `us 3-0-3` — your wins-draws-losses against them (green when you win more)
+- `WR 43%` — their win rate overall (red from 60%, yellow from 45%)
+- `vs us 50%` — how often they beat **you** (red from 50%, yellow from 25%)
+
+Hover a badge for the full story: record, goals and the last result against you.
 
 Works while you type in the search box too.
 
