@@ -26,15 +26,15 @@
 <th width="50%">With the plugin</th>
 </tr>
 <tr>
-<td><img src="docs/without-plugin.jpg" alt="The match viewer without the plugin: the game, an empty frame under it and an empty Coach Live Feed card"></td>
+<td><img src="docs/without-plugin.jpg" alt="The match viewer without the plugin: the game, an empty Coach Live Feed card and one line of commentary"></td>
 <td><img src="docs/viewer-panel.jpg" alt="The same match with the plugin: under the game shots, xG, possession, a shot map and the agents; on the right the opponent panel"></td>
 </tr>
 <tr>
 <td valign="top">
 
 - the game picture
-- an empty frame under it
 - *Coach Live Feed* waiting for prompts
+- one line of commentary
 
 </td>
 <td valign="top">
