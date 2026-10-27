@@ -5,7 +5,7 @@
 **Scout every opponent, never lose a match recording, and never miss a challenge in the Agentic Football Cup.**
 
 ![Chrome](https://img.shields.io/badge/Chrome-extension-4285F4?logo=googlechrome&logoColor=white)
-![Version](https://img.shields.io/badge/version-1.42-22d3ee)
+![Version](https://img.shields.io/badge/version-1.43-22d3ee)
 ![Manifest](https://img.shields.io/badge/Manifest-V3-6e56cf)
 ![Install](https://img.shields.io/badge/install-one%20command-4ade80)
 ![Privacy](https://img.shields.io/badge/data-stays%20on%20your%20Mac-94a3b8)
@@ -17,6 +17,8 @@
 </div>
 
 ---
+
+<p align="center"><b>⭐ If it helps your team, give it a star — it helps other teams find it.</b></p>
 
 ## 🚀 Install in one minute
 
@@ -51,6 +53,7 @@ at the top — press it and the plugin installs the new version and reloads itse
 
 | | |
 |---|---|
+| 🎲 **Your win chance** | Before you challenge and during the match: the chance to win, draw or lose against that team, with fair odds. |
 | 🔍 **Scouting panel in the viewer** | The opponent's place in the table, win rate overall and **against you**, your record and goals, the last result — while the match is on. |
 | 🎯 **Smarter opponent picking** | Every team in *Find match* shows its rank, win rate overall and **win rate against you**, so you challenge the right teams. |
 | 📼 **Every match recorded** | Ball, all 10 players and their actions ~40× a second, the commentary, the portal's report and a screenshot of the final score — saved by themselves. |
@@ -79,6 +82,7 @@ at the top — press it and the plugin installs the new version and reloads itse
 Open **Find opponent** and every team already tells you how it stands:
 
 - `⚑ GROUP B` — the team is in your tournament group ([load your group](#-your-tournament-group))
+- `win 79%` — your chance to beat them (hover for draw / lose and the odds)
 - `#24` — place in the tournament table
 - `43%` — their win rate overall (red from 60%, yellow from 45%)
 - `vs us 3-0-3 (50%)` — their wins-draws-losses against **you**, and how often they beat you
@@ -107,8 +111,9 @@ Before kick-off it simply says *waiting*. **→ side panel** moves it into the r
 
 ### The opponent panel
 
-The viewer's right column (in place of the empty Coach Live Feed): the opponent's **place**, **win rate overall**
-and **against you**, **your record and goals**, their **form** (last 5 results, rising or falling over 24 h),
+The viewer's right column (in place of the empty Coach Live Feed): **your win chance** (win / draw / lose bar and
+fair odds), **your win rate against them**, the opponent's **place**, **win rate overall** and **against you**, **your record and goals**, **their last 5** results (W = they won, L = they lost) and whether
+they are rising or falling over 24 h,
 the **last match** between you, your agents' **ping** per position and what the plugin is doing. Sections fold
 one by one; **▾** folds the whole panel to show the Coach Live Feed. It appears whether you started the match
 yourself or accepted a challenge.
@@ -189,6 +194,15 @@ countdown, **Accept** and **🔇** to silence the chime) and **Update** next to 
 | **Match** | this match: recording, report and score screenshot, each ✓ when saved, plus warnings · **Last match**: result, shots, xG, possession, silent agents · **Stop & save**, **Screenshot**, **Folder**, **Day summary** · your agents' **ping** |
 | **Form** | **Our form**: W-D-L, win rate and goals per block of 10 matches (real opponents only) · **Recent matches** with ✓/✗ per file — click one to open its report |
 | **⚙ Settings** | the switches (Auto-START, Auto-accept, Chime, Record in background, Save portal data) · **My group** with its table |
+
+---
+
+## 🎲 How the win chance is worked out
+
+Both teams' overall win rates are combined with the classic **log5** formula (the chance that A beats B when A wins
+`a` of its games and B wins `b`), draws take the two teams' average draw share, and your head-to-head record nudges
+the result (it counts like 8 extra games at the estimate). Fair odds = 1 / chance. Checked on 69 real matches: the
+likeliest outcome was right 64% of the time. It is an estimate, not a promise — agents change between matches.
 
 ---
 

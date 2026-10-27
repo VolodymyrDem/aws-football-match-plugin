@@ -417,6 +417,22 @@
     setInterval(() => { if (document.visibilityState === "visible") portalSync(false); }, 5 * 60e3);
   }
 
+// 1.43: our chances against a team — log5 on the two overall win rates (draws: the two teams' average draw
+  // share), nudged by our head-to-head record with weight 8 (on our 69 real matches h2h added nothing beyond
+  // that: Brier 0.43, the likeliest outcome right 64%). Returns {w, d, l} (0..1) and decimal odds, or null.
+  const winChance = (lb, opp, ms, oppWr) => {
+    if (!lb || !lb.teams) return null;
+    const meRow = lb.teams.find(t => lb.us && ((lb.us.id && t.id === lb.us.id) || String(t.name).trim().toLowerCase() === String(lb.us.name || "").trim().toLowerCase()));
+    if (!meRow || !meRow.p) return null;
+    const A = meRow.w / meRow.p, B = opp && opp.p ? opp.w / opp.p : (oppWr != null ? oppWr / 100 : 0.5);
+    const dr = Math.min(0.3, ((meRow.d / meRow.p) + (opp && opp.p ? opp.d / opp.p : meRow.d / meRow.p)) / 2);
+    const P = A * (1 - B) + B * (1 - A) > 0 ? A * (1 - B) / (A * (1 - B) + B * (1 - A)) : 0.5;
+    const k = 8, list = ms || [], w = list.filter(m => m.us > m.them).length, l = list.filter(m => m.us < m.them).length, n = list.length;
+    const W = (w + k * P * (1 - dr)) / (n + k), L = (l + k * (1 - P) * (1 - dr)) / (n + k), D = Math.max(0, 1 - W - L);
+    const odds = p => p > 0.02 ? (1 / p).toFixed(p > 0.5 ? 2 : 1) : "50+";
+    return { w: W, d: D, l: L, odds: [odds(W), odds(D), odds(L)] };
+  };
+
   // ---- Match panel over the viewer's "Coach Live Feed" card (1.16): opponent's place, win rate
   // and our record against them, our place, both teams' ping per position, the recording and
   // the switches. "▾" folds it to its title so the coach feed shows again (remembered).
@@ -576,8 +592,8 @@
       const seq = FORM.last.map(x => `<i class="${x.r}" title="${E(x.t)}">${x.r}</i>`).join("");
       const day = FORM.day.n ? `${FORM.day.wr}% <span class="m">· ${FORM.day.n} games</span>` : `<span class="m">no games</span>`;
       const arrow = FORM.day.n >= 3 && FORM.all.n ? (FORM.day.wr > FORM.all.wr + 10 ? ` <span class="r">▲</span>` : FORM.day.wr < FORM.all.wr - 10 ? ` <span class="g">▼</span>` : "") : "";
-      return `<div class="kv"><span title="their last 5, newest first (red = they won)">Form</span><span class="fr">${seq}</span></div>
-        <div class="kv"><span>Last 24 h</span><span>${day}${arrow}</span></div>
+      return `<div class="kv"><span title="the opponent's last 5 matches, newest first: W = they won (red), L = they lost (green), D = draw">Their last 5</span><span class="fr">${seq}</span></div>
+        <div class="kv"><span title="their win rate over the last 24 h (▲ / ▼: more than 10 points above / below their overall)">Their last 24 h</span><span>${day}${arrow}</span></div>
         <div class="kv"><span>Goals / game</span><span>${FORM.all.gf}:${FORM.all.ga} <span class="m">· last ${FORM.all.n}</span></span></div>`;
     };
     const loadForm = () => {
@@ -670,8 +686,17 @@
         ot ? `<span class="chip">#<b>${ot.rank}</b> of ${H.lb.total || H.lb.teams.length}</span>` : "",
         wr != null ? `<span class="chip">WR <b class="${wr >= 60 ? "r" : wr >= 45 ? "o" : "g"}">${wr}%</b></span>` : "",
         vs != null ? `<span class="chip">vs us <b class="${vs >= 50 ? "r" : vs >= 25 ? "o" : "g"}">${vs}%</b></span>` : (H ? `<span class="chip">never played us</span>` : "")].join("");
-      const oppBody = `<div class="kv"><span>Win rate</span><span>${ot ? `<b class="${wr >= 60 ? "r" : wr >= 45 ? "o" : "g"}">${wr}%</b> <span class="m">· ${ot.w}-${ot.d}-${ot.l}</span>` : `<span class="m">${H ? "not in the table" : "…"}</span>`}</span></div>
-          <div class="kv"><span>Win rate vs us</span><span>${!H ? "…" : ms.length ? `<b class="${l > w ? "r" : l === w ? "o" : "g"}">${vs}%</b> <span class="m">· ${l} of ${ms.length}</span>` : `<span class="m">never played</span>`}</span></div>
+      const wc = H ? winChance(H.lb, ot, ms, FORM && FORM.ok ? FORM.all.wr : null) : null;
+      const wcp = wc ? Math.round(100 * wc.w) : null;
+      const wcChip = wc ? `<span class="chip" title="estimate from both win rates and our record against them">win chance <b class="${wcp >= 60 ? "g" : wcp >= 40 ? "o" : "r"}">${wcp}%</b></span>` : "";
+      const wcRow = wc ? `<div class="kv"><span title="estimate: both teams' win rates (log5) and our record against them">Our win chance</span><span><b class="${wcp >= 60 ? "g" : wcp >= 40 ? "o" : "r"}">${wcp}%</b></span></div>
+          <div class="br" style="grid-template-columns:1fr;margin:3px 0 1px"><div class="t"><i style="width:${100 * wc.w}%;background:#4ade80"></i><i style="width:${100 * wc.d}%;background:#fbbf24"></i><i style="width:${100 * wc.l}%;background:#f87171"></i></div></div>
+          <div class="note" style="margin:0 0 4px" title="decimal odds = 1 / chance: what a fair bet would pay">win ${wcp}% · draw ${Math.round(100 * wc.d)}% · lose ${Math.round(100 * wc.l)}% · odds ${wc.odds.join(" / ")}</div>` : "";
+      const ourWr = ms.length ? pct(w, ms.length) : null;
+      const oppBody = `${wcRow}
+          <div class="kv"><span>Our win rate vs them</span><span>${ourWr == null ? `<span class="m">never played</span>` : `<b class="${ourWr >= 60 ? "g" : ourWr >= 40 ? "o" : "r"}">${ourWr}%</b> <span class="m">· ${w} of ${ms.length}</span>`}</span></div>
+          <div class="kv"><span>Their win rate</span><span>${ot ? `<b class="${wr >= 60 ? "r" : wr >= 45 ? "o" : "g"}">${wr}%</b> <span class="m">· ${ot.w}-${ot.d}-${ot.l}</span>` : `<span class="m">${H ? "not in the table" : "…"}</span>`}</span></div>
+          <div class="kv"><span>Their win rate vs us</span><span>${!H ? "…" : ms.length ? `<b class="${l > w ? "r" : l === w ? "o" : "g"}">${vs}%</b> <span class="m">· ${l} of ${ms.length}</span>` : `<span class="m">never played</span>`}</span></div>
           <div class="kv"><span>Our record</span><span>${ms.length ? `<b class="${w > l ? "g" : w < l ? "r" : "o"}">${w}-${d}-${l}</b> <span class="m">· ${gf}:${ga}</span>` : "—"}</span></div>
           ${formRows()}
           ${last ? `<div class="kv"><span>Last vs us</span><span>${last.us}:${last.them}${last.version ? ` <span class="m">· ${E(last.version)}</span>` : ""}</span></div>` : ""}`;
@@ -693,7 +718,7 @@
       box.className = "drk" + (folded ? " folded" : "");
       box.innerHTML = `<div class="hd"><span class="nm" title="${E(oppName)}">${E(oppName)}</span>${folded && sc ? `<b>${sc}</b>` : ""}
           <button data-fold title="${folded ? "Show the panel" : "Fold, show the Coach Live Feed"}">${folded ? "▸" : "▾"}</button></div>
-        <div class="chips">${chips}</div>
+        <div class="chips">${wcChip}${chips}</div>
         <div class="bd">
           ${sec("opp", "Opponent", oppBody)}
           ${stripOn ? `<div class="sec"><div class="note">This match and the agents: <b>under the game</b> ↙</div></div>`
@@ -831,6 +856,10 @@
         parts.push(`vs us <b class="${cls}">${l}-${d}-${w}</b> (<b class="${cls}">${vs}%</b>)`);
         tip.push(`vs us: they won ${l} of ${ms.length}; our record ${w}-${d}-${l}, goals ${gf}:${ga}, last ${last.us}:${last.them}`);
       } else { parts.push("vs us —"); tip.push("never played us"); }
+      const wc = winChance(HB.lb, t, ms, null);   // 1.43
+      if (wc && t) { const p = Math.round(100 * wc.w);
+        parts.push(`win <b class="${p >= 60 ? "g" : p >= 40 ? "o" : "r"}">${p}%</b>`);
+        tip.push(`our win chance ${p}% · draw ${Math.round(100 * wc.d)}% · lose ${Math.round(100 * wc.l)}% (odds ${wc.odds.join(" / ")})`); }
       return { html: parts.join(" · "), title: tip.join("\n") };
     };
     const dialog = () => {

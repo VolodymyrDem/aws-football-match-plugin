@@ -315,6 +315,16 @@ setInterval(loadPing, 20000);
 let H2H = null;
 const normName = n => String(n || "").replace(/\s*\((\u043b\u044e\u0434\u0438\u043d\u0430|human)\)/i, "").trim().toLowerCase();
 const usName = () => (H2H && H2H.lb && H2H.lb.us && H2H.lb.us.name) || "The Drunkards";
+// 1.43: our win chance — same estimate as the match panel (log5 on both win rates + our record, weight 8)
+function winChance(lb, opp, ms) {
+  if (!lb || !lb.teams || !opp || !opp.p) return null;
+  const me = lb.teams.find(t => lb.us && ((lb.us.id && t.id === lb.us.id) || normName(t.name) === normName(lb.us.name)));
+  if (!me || !me.p) return null;
+  const A = me.w / me.p, B = opp.w / opp.p, dr = Math.min(0.3, (me.d / me.p + opp.d / opp.p) / 2);
+  const P = A * (1 - B) + B * (1 - A) > 0 ? A * (1 - B) / (A * (1 - B) + B * (1 - A)) : 0.5;
+  const k = 8, w = ms.filter(m => m.us > m.them).length, l = ms.filter(m => m.us < m.them).length, n = ms.length;
+  return { w: (w + k * P * (1 - dr)) / (n + k), l: (l + k * (1 - P) * (1 - dr)) / (n + k) };
+}
 function oppLine(name, id) {
   if (!H2H) return "";
   const lb = H2H.lb, key = normName(name);
@@ -330,6 +340,8 @@ function oppLine(name, id) {
     const cls = w > l ? "lat-ok" : w < l ? "lat-bad" : "lat-mid";
     parts.push(`us vs them <b class="${cls}">${w}-${d}-${l}</b> (${gf}:${ga}), last ${last.us}:${last.them}`);
   } else parts.push("never played");
+  const wc = winChance(lb, t, ms);
+  if (wc) { const p = Math.round(100 * wc.w); parts.push(`our win chance <b class="${p >= 60 ? "lat-ok" : p >= 40 ? "lat-mid" : "lat-bad"}">${p}%</b>`); }
   return parts.join(" · ");
 }
 const loadH2H = () => chrome.runtime.sendMessage({ type: "popup-h2h" }, r => { if (r && r.ok) { H2H = r; refresh(); renderInvites(); renderGroup(); } });

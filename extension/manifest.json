@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "AWS Football Match Plugin",
-  "version": "1.42",
+  "version": "1.43",
   "description": "Records your Agentic Football matches (Downloads/agentic-football-matches), shows the opponent's place, win rate and our record in the viewer, announces challenges, auto-START.",
   "permissions": [
     "downloads",
