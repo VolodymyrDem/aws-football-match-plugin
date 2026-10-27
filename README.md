@@ -6,19 +6,25 @@
 повідомляє про виклики і сам тисне START. Працює лише на agentic-football.aws.dev; нікуди нічого не
 надсилає — файли падають у твою папку Downloads.
 
-## Встановлення (2 хвилини)
+## Встановлення (1 хвилина)
 
-1. Розпакуй `football-match-helper-<версія>.zip` у будь-яку постійну папку (не видаляй її потім —
-   Chrome бере розширення звідти).
-2. Відкрий `chrome://extensions`, увімкни **Developer mode** (перемикач справа вгорі).
-3. **Load unpacked** → вибери папку `extension` з архіву.
-4. Закріп значок (пазл → шпилька біля «Drunkards match recorder»).
-5. `chrome://settings/downloads` → вимкни **Ask where to save each file before downloading**, інакше
-   Chrome питатиме про кожен файл.
-6. Перезавантаж вкладки agentic-football.aws.dev, якщо вони були відкриті.
+1. Розпакуй `football-match-helper-<версія>.zip` (подвійний клік).
+2. Запусти інсталятор у розпакованій папці:
+   - **Mac:** `Install.command` — першого разу **правий клік → Open → Open** (macOS питає один раз про
+     файли з інтернету). Або в Терміналі: `bash ~/Downloads/football-match-helper/Install.command`.
+   - **Windows:** подвійний клік `Install.bat`.
+3. Відкриється `chrome://extensions` і підказка. Там три кліки:
+   **Developer mode** (перемикач справа вгорі) → **Load unpacked** → вставити шлях
+   (Mac: Cmd+Shift+G, Cmd+V, Enter; Windows: Ctrl+V у поле адреси) → **Select**.
+   Шлях інсталятор уже скопіював.
+4. Порада: `chrome://settings/downloads` → вимкни «Ask where to save each file before downloading»,
+   інакше Chrome питатиме про кожен файл матчу.
 
-Оновлення: заміни вміст тієї ж папки новим і натисни ↻ на картці розширення в `chrome://extensions`.
-Відкриті вкладки порталу підхоплять нову версію самі.
+Розширення лежить у постійній папці (`~/Library/Application Support/FootballMatchHelper` або
+`%LOCALAPPDATA%\FootballMatchHelper`), тож zip після встановлення можна видалити.
+
+**Оновлення:** розпакуй новий zip і знову запусти інсталятор — він замінить файли на місці; у
+`chrome://extensions` натисни ↻ на картці. Відкриті вкладки гри підхоплять нову версію самі.
 
 ## Що воно робить
 
