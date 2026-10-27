@@ -1,4 +1,6 @@
-# Drunkards match recorder — розширення Chrome для Agentic Football Cup
+# football-match-helper — розширення Chrome для Agentic Football Cup
+
+(у Chrome воно називається «Drunkards match recorder»)
 
 Записує кожен твій матч на agentic-football.aws.dev, показує дані про суперника просто в переглядачі,
 повідомляє про виклики і сам тисне START. Працює лише на agentic-football.aws.dev; нікуди нічого не
@@ -6,7 +8,7 @@
 
 ## Встановлення (2 хвилини)
 
-1. Розпакуй `drunkards-match-recorder-<версія>.zip` у будь-яку постійну папку (не видаляй її потім —
+1. Розпакуй `football-match-helper-<версія>.zip` у будь-яку постійну папку (не видаляй її потім —
    Chrome бере розширення звідти).
 2. Відкрий `chrome://extensions`, увімкни **Developer mode** (перемикач справа вгорі).
 3. **Load unpacked** → вибери папку `extension` з архіву.
