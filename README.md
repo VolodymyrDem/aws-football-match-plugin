@@ -5,7 +5,7 @@
 **Scout every opponent, never lose a match recording, and never miss a challenge in the Agentic Football Cup.**
 
 ![Chrome](https://img.shields.io/badge/Chrome-extension-4285F4?logo=googlechrome&logoColor=white)
-![Version](https://img.shields.io/badge/version-1.40-22d3ee)
+![Version](https://img.shields.io/badge/version-1.41-22d3ee)
 ![Manifest](https://img.shields.io/badge/Manifest-V3-6e56cf)
 ![Install](https://img.shields.io/badge/install-one%20command-4ade80)
 ![Privacy](https://img.shields.io/badge/data-stays%20on%20your%20Mac-94a3b8)
@@ -61,6 +61,7 @@ at the top — press it and the plugin installs the new version and reloads itse
 | 🏁 **Score on the icon + summary** | The live score on the plugin icon; at full time a summary: result, xG, shots, silent agents. |
 | 📈 **Form at a glance** | The opponent's last 5 results and 24-hour trend; your own form per block of 10 matches in the popup. |
 | 🛎️ **A chime you can't miss** | A sound every 12 s and a flashing portal tab while a challenge waits. |
+| ⚑ **Your group, marked** | Load your tournament group as JSON: its teams are marked everywhere, plus a mini table. |
 | ⬆️ **One-click updates** | A green *Update* button when a new version is out; it installs and reloads by itself. |
 | 🎥 **Records even unwatched** | A match of yours with no viewer open gets one in a background tab, closed after the save. |
 | 🔒 **Private by design** | Runs only on agentic-football.aws.dev, uses your own portal session, sends nothing anywhere. |
@@ -101,6 +102,41 @@ without one: a silent or slow agent shows at once. Above it, **this match live**
 possession and how much the ball sits in each side's attacking third. Under the win rates, the opponent's
 **form**: their last 5 results and whether they are rising or falling over the last 24 h. Press **▾** to fold it into a strip and
 see the Coach Live Feed again. It appears whether you started the match yourself or accepted a challenge.
+
+---
+
+## ⚑ Your tournament group
+
+Load your group once and its teams get a purple **⚑ GROUP <name>** mark in *Find match*, on incoming challenges
+(card and notification) and on the match panel, so you always know which matches count for the table. The
+*Settings* tab then also shows the group as a small table: place, win rate and your record against each team.
+
+**How to load it**
+
+1. Click the plugin's icon → **⚙ Settings** → **My group** → **Load group…**
+2. Paste the JSON below (or **From file…** to pick a `.json` file) → **Save**.
+
+Open game tabs pick it up within a minute. **Clear** removes it.
+
+**Format** — one object with the group's name and the other teams' names:
+
+```json
+{
+  "name": "D",
+  "teams": [
+    "AWSuoliai",
+    "Tik&Taka",
+    "Next-gen"
+  ]
+}
+```
+
+| Field | What | Rules |
+|---|---|---|
+| `name` | the group's name, shown as *⚑ GROUP D* | text, 1–30 characters |
+| `teams` | the teams in your group | 1–40 names, written as the portal shows them; capitals and a *(human)* tag are ignored |
+
+Your own team in the list does no harm. The group stays in your Chrome only.
 
 ---
 

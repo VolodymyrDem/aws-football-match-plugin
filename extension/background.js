@@ -713,16 +713,22 @@ async function keepTableAndResults(d) {
 }
 // 1.36: our tournament group, from the local helper (native/group.json) — own build only; the team
 // build has no helper, so nobody else gets the mark. {name, teams: [lower-case names]} or null.
+// 1.41: anyone can load their own group in the popup (Settings → My group, JSON {"name", "teams"}), kept in
+// storage.local userGroup; it wins over the helper's file.
+const normTeam = t => String(t || "").replace(/\s*\((людина|human)\)/i, "").trim().toLowerCase();
 async function myGroup() {
+  const { userGroup } = await chrome.storage.local.get("userGroup");
+  if (userGroup && userGroup.name && Array.isArray(userGroup.teams) && userGroup.teams.length)
+    return { name: String(userGroup.name), teams: userGroup.teams.map(normTeam), own: true };
   let { groupInfo } = await chrome.storage.local.get("groupInfo");
   if (!groupInfo || Date.now() - groupInfo.at > 10 * 60e3) {
     const r = await nativeCall({ cmd: "group" });
-    groupInfo = { at: Date.now(), g: r && r.ok && Array.isArray(r.teams) ? { name: r.name, teams: r.teams.map(t => String(t).trim().toLowerCase()) } : null };
+    groupInfo = { at: Date.now(), g: r && r.ok && Array.isArray(r.teams) ? { name: r.name, teams: r.teams.map(normTeam) } : null };
     if (!(r && r.missing && groupInfo.g === null && HAS_NATIVE)) await chrome.storage.local.set({ groupInfo });
   }
   return groupInfo.g;
 }
-const inGroup = (g, name) => !!(g && g.teams.includes(String(name || "").replace(/\s*\((людина|human)\)/i, "").trim().toLowerCase()));
+const inGroup = (g, name) => !!(g && g.teams.includes(normTeam(name)));
 async function h2hData() {
     let { h2hLocal } = await chrome.storage.local.get("h2hLocal");
     if (!h2hLocal || Date.now() - h2hLocal.at > 10 * 60e3) {

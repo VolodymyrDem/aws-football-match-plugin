@@ -332,7 +332,73 @@ function oppLine(name, id) {
   } else parts.push("never played");
   return parts.join(" · ");
 }
-const loadH2H = () => chrome.runtime.sendMessage({ type: "popup-h2h" }, r => { if (r && r.ok) { H2H = r; refresh(); renderInvites(); } });
+const loadH2H = () => chrome.runtime.sendMessage({ type: "popup-h2h" }, r => { if (r && r.ok) { H2H = r; refresh(); renderInvites(); renderGroup(); } });
+
+// ---- My group (1.41): load your tournament group as JSON {"name": "D", "teams": ["…", …]}; its teams get
+// ⚑ GROUP <name> in Find match, on challenges and on the match panel. Kept in storage.local userGroup.
+function parseGroup(text) {
+  let j;
+  try { j = JSON.parse(text); } catch (e) { throw new Error("not valid JSON: " + e.message); }
+  if (!j || typeof j !== "object" || Array.isArray(j)) throw new Error('expected an object: {"name": "D", "teams": [...]}');
+  const name = String(j.name ?? j.group ?? "").trim();
+  if (!name || name.length > 30) throw new Error('"name": the group name, 1–30 characters');
+  if (!Array.isArray(j.teams) || !j.teams.length) throw new Error('"teams": a list of team names');
+  const teams = [...new Set(j.teams.map(t => String(t).trim()).filter(Boolean))];
+  if (!teams.length || teams.length > 40) throw new Error('"teams": 1–40 team names');
+  return { name, teams, at: Date.now() };
+}
+async function renderGroup() {
+  const { userGroup } = await chrome.storage.local.get("userGroup");
+  const g = userGroup || (H2H && H2H.group ? { name: H2H.group.name, teams: H2H.group.teams, file: true } : null);
+  const el = $("group");
+  $("groupClear").hidden = !userGroup || $("groupEdit").hidden;
+  if (!g) { el.innerHTML = `<div class="meta">No group loaded. Load it as JSON to see ⚑ GROUP next to those teams in Find match, on challenges and on the match panel.</div>`; return; }
+  const lb = H2H && H2H.lb, ms = Object.values((H2H && H2H.matches) || {});
+  const rows = g.teams.map(t => {
+    const k = normName(t), row = lb && (lb.teams || []).find(x => normName(x.name) === k);
+    const mm = ms.filter(m => normName(m.opp) === k), w = mm.filter(m => m.us > m.them).length, l = mm.filter(m => m.us < m.them).length;
+    const wr = row && row.p ? Math.round(100 * row.w / row.p) : null;
+    return { t: row ? row.name : t, rank: row ? row.rank : 999, html: `<tr><td title="${esc(t)}">${esc(row ? row.name : t)}</td><td>${row ? "#" + row.rank : "—"}</td>
+      <td class="${wr == null ? "" : wr >= 60 ? "bad" : wr >= 45 ? "warn" : "ok"}">${wr == null ? "—" : wr + "%"}</td>
+      <td class="${!mm.length ? "muted" : w > l ? "ok" : w < l ? "bad" : "warn"}">${mm.length ? `${w}-${mm.length - w - l}-${l}` : "—"}</td></tr>` };
+  }).sort((a, b) => a.rank - b.rank);
+  el.innerHTML = `<div class="pill ok"><span class="dot"></span>Group ${esc(g.name)} · ${g.teams.length} teams${g.file ? ` <span class="muted" style="font-weight:400">(helper file)</span>` : ""}</div>
+    <table class="gtab"><colgroup><col style="width:46%"><col style="width:16%"><col style="width:16%"><col style="width:22%"></colgroup>
+    <tr><th>team</th><th>place</th><th>win</th><th title="our record against them, W-D-L">vs us</th></tr>${rows.map(r => r.html).join("")}</table>`;
+}
+$("groupEditBtn").addEventListener("click", async () => {
+  const open = $("groupEdit").hidden;
+  $("groupEdit").hidden = !open; $("groupSave").hidden = !open; $("groupFile").hidden = !open;
+  $("groupEditBtn").textContent = open ? "Cancel" : "Load group…";
+  if (open) {
+    const { userGroup } = await chrome.storage.local.get("userGroup");
+    const g = userGroup || (H2H && H2H.group) || null;
+    if (g && !$("groupText").value) $("groupText").value = JSON.stringify({ name: g.name, teams: userGroup ? g.teams : g.teams }, null, 2);
+  }
+  renderGroup();
+});
+$("groupSave").addEventListener("click", async () => {
+  try {
+    const g = parseGroup($("groupText").value);
+    await chrome.storage.local.set({ userGroup: g });
+    toast(`Group ${g.name} saved: ${g.teams.length} teams. Open game tabs show it within a minute.`);
+    $("groupEditBtn").click();
+  } catch (e) { toast("Group not saved — " + e.message); }
+});
+$("groupFile").addEventListener("click", () => $("groupFileIn").click());
+$("groupFileIn").addEventListener("change", async e => {
+  const f = e.target.files && e.target.files[0];
+  if (!f) return;
+  $("groupText").value = await f.text();
+  e.target.value = "";
+});
+$("groupClear").addEventListener("click", async () => {
+  await chrome.storage.local.remove("userGroup");
+  toast("Group cleared.");
+  $("groupText").value = "";
+  renderGroup();
+});
+renderGroup();
 loadH2H();
 setInterval(loadH2H, 60000);
 

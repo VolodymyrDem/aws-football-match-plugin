@@ -91,6 +91,12 @@
   nav.tabs button.on { background: var(--bg); color: var(--fg); box-shadow: 0 1px 2px rgba(0,0,0,.15); }
   nav.tabs button .n { display: inline-block; min-width: 15px; margin-left: 4px; padding: 0 4px; border-radius: 8px; background: var(--red); color: #fff; font-size: 10px; }
   section[hidden] { display: none; }
+  #groupText { width: 100%; box-sizing: border-box; font: 11px/1.4 ui-monospace, Menlo, monospace; background: var(--bg); color: var(--fg); border: 1px solid var(--line); border-radius: 7px; padding: 6px; resize: vertical; }
+  table.gtab { width: 100%; margin: 6px 0 0; table-layout: fixed; font-variant-numeric: tabular-nums; }
+  table.gtab td { padding: 3px 4px; border-top: 1px solid var(--line); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: right; }
+  table.gtab td:first-child { text-align: left; }
+  table.gtab th { font-size: 10px; font-weight: 500; color: var(--muted); text-align: right; padding: 0 4px 3px; }
+  table.gtab th:first-child { text-align: left; }
   section[data-pane] { padding-bottom: 14px; }
   .toast:empty { min-height: 0; margin: 0; }
   #invites:empty + .toast:empty + section > .card:first-child { margin-top: 8px; }
@@ -164,6 +170,19 @@
     <input type="checkbox" id="portalSave"><span class="knob"></span>
     <span>Save portal data <span id="psInfo" class="muted"></span></span>
   </label>
+  </div>
+  <h2>My group</h2>
+  <div class="card" id="group"><div class="meta">…</div></div>
+  <div class="card" id="groupEdit" hidden style="margin-top:6px">
+    <textarea id="groupText" rows="6" spellcheck="false" placeholder='{"name": "D", "teams": ["Team A", "Team B", "Team C"]}'></textarea>
+    <div class="meta" style="margin-top:4px">JSON: <code>name</code> = the group's name, <code>teams</code> = the other teams' names as the portal writes them.</div>
+  </div>
+  <div class="buttons">
+    <button id="groupEditBtn" title="Paste or load the group as JSON">Load group…</button>
+    <button class="primary" id="groupSave" hidden>Save</button>
+    <button id="groupFile" hidden title="Pick a .json file">From file…</button>
+    <button id="groupClear" hidden title="Forget the loaded group">Clear</button>
+    <input type="file" id="groupFileIn" accept=".json,application/json" hidden>
   </div>
   <h2>Emulator</h2>
   <div class="card" id="emu"><div class="pill idle"><span class="dot"></span>checking…</div></div>
