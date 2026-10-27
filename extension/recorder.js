@@ -317,7 +317,9 @@
   const XG_BY_M = [0.58, 0.28, 0.28, 0.22, 0.2, 0.2, 0.13, 0.05, 0.05, 0.05];
   const SHOOT = new Set(["ShootAtGoal", "CoachShoot"]);
   let st = null;
-  const statReset = () => { st = { dir: 0, sh: [0, 0], xg: [0, 0], hold: [0, 0], third: [0, 0], all: 0, prev: {}, at: {}, last: [] }; };
+  // 1.34: every shot for the panel's shot map — [gameTime, team, playerIdx, x, z, xg, goal], x / z in the
+  // shooter's frame (attacking +x towards the goal at x = 6.5); goal = 1 when that team scored within 4 s.
+  const statReset = () => { st = { dir: 0, sh: [0, 0], xg: [0, 0], hold: [0, 0], third: [0, 0], all: 0, prev: {}, at: {}, last: [], map: [], score: null }; };
   statReset();
   const statAdd = r => {
     if (!st.dir) {   // home attacks +x when it kicks off on the -x half
@@ -327,6 +329,10 @@
       st.dir = s / n < 0 ? 1 : -1;
     }
     st.all++;
+    if (st.score) for (const tm of [0, 1]) if (r[4 + tm] > st.score[tm]) {   // a goal: its team's last shot within 4 s
+      for (let j = st.map.length - 1; j >= 0; j--) { const m = st.map[j]; if (r[2] - m[0] > 4) break; if (m[1] === tm && !m[6]) { m[6] = 1; break; } }
+    }
+    st.score = [r[4], r[5]];
     if (r[14] === 0 || r[14] === 1) st.hold[r[14]]++;
     const bx = r[6] * st.dir;   // + = towards the away goal
     if (bx > 6.5 / 3) st.third[0]++; else if (bx < -6.5 / 3) st.third[1]++;
@@ -341,6 +347,8 @@
       const xg = XG_BY_M[Math.min(9, Math.floor(d))];
       st.sh[tm]++; st.xg[tm] += xg;
       st.last.push([r[2], tm, r[i], Math.round(d * 10) / 10, xg]);
+      const sx = tm === 0 ? st.dir : -st.dir;   // the shooter's frame: attacking +x
+      if (st.map.length < 80) st.map.push([Math.round(r[2] * 10) / 10, tm, r[i], Math.round(r[i + 2] * sx * 100) / 100, Math.round(r[i + 3] * sx * 100) / 100, xg, 0]);
       if (st.last.length > 5) st.last.shift();
     }
   };
@@ -348,7 +356,7 @@
     const h = st.hold[0] + st.hold[1];
     return { sh: st.sh, xg: st.xg.map(x => Math.round(x * 100) / 100),
       pos: h ? [Math.round(100 * st.hold[0] / h), 100 - Math.round(100 * st.hold[0] / h)] : null,
-      third: st.all ? st.third.map(x => Math.round(100 * x / st.all)) : null, last: st.last };
+      third: st.all ? st.third.map(x => Math.round(100 * x / st.all)) : null, last: st.last, map: st.map, frames: st.all };
   };
 
   // Live status for the extension's popup (bridge.js passes it on): what is recorded so far.

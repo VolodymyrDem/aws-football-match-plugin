@@ -85,19 +85,54 @@
   .inv button { margin-left: auto; background: var(--green); border-color: var(--green); color: #fff; font-weight: 600; }
   .invnote { color: var(--muted); font-size: 11px; padding: 0 4px; }
   .toast { margin: 8px 10px 0; font-size: 12px; color: var(--muted); min-height: 16px; }
+  nav.tabs { display: flex; gap: 2px; margin: 0 10px 10px; padding: 3px; background: var(--card); border-radius: 9px; }
+  nav.tabs button { flex: 1; border: 0; background: none; color: var(--muted); font-weight: 600; padding: 6px 4px; border-radius: 7px; }
+  nav.tabs button.on { background: var(--bg); color: var(--fg); box-shadow: 0 1px 2px rgba(0,0,0,.15); }
+  nav.tabs button .n { display: inline-block; min-width: 15px; margin-left: 4px; padding: 0 4px; border-radius: 8px; background: var(--red); color: #fff; font-size: 10px; }
+  section[hidden] { display: none; }
+  .card.switches { padding: 2px 0 12px; }
+  .card.switches .switch { margin: 10px 12px 0; }
+  .bars { display: grid; gap: 7px; margin-top: 8px; }
+  .bar { display: grid; grid-template-columns: 34px 1fr 34px; align-items: center; gap: 6px; font-size: 12px; font-variant-numeric: tabular-nums; }
+  .bar .v { text-align: right; } .bar .v.r { text-align: left; }
+  .bar .t { position: relative; height: 16px; border-radius: 4px; background: var(--line); overflow: hidden; display: flex; }
+  .bar .t i { display: block; height: 100%; } .bar .t .us { background: #22d3ee; } .bar .t .th { background: #fb923c; margin-left: auto; }
+  .bar .t b { position: absolute; inset: 0; text-align: center; font-size: 10px; line-height: 16px; font-weight: 600; color: #fff; text-shadow: 0 0 3px rgba(0,0,0,.7); }
+  .sumhead { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+  .sumhead .sc { font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; }
 </style>
 </head>
 <body>
   <header><b><img src="icons/icon32.png" alt="" width="16" height="16" style="vertical-align:-2px;margin-right:6px">AWS Football Match Plugin</b><span><button id="upd" class="upd" hidden></button> <span id="ver"></span></span></header>
   <div id="updNote" class="hint" hidden></div>
+  <nav class="tabs" id="tabs">
+    <button data-tab="match">Match</button><button data-tab="form">Form</button><button data-tab="settings">⚙ Settings</button>
+  </nav>
   <div id="invites"></div>
+  <div class="toast" id="toast"></div>
+  <section data-pane="match">
   <div class="card" id="current"></div>
+  <h2>Last match</h2>
+  <div class="card" id="last"><div class="meta">…</div></div>
   <div class="buttons">
     <button class="primary" id="save" title="Stop recording in this tab and save everything so far">Stop & save</button>
     <button id="shot" title="Save a screenshot of the visible tab (e.g. the final score)">Screenshot</button>
     <button id="folder" title="Show the files in Finder">Folder</button>
     <button id="day" title="Copy a table of today's matches: time, teams, score, what was saved">Day summary</button>
   </div>
+  <h2>Agents' ping</h2>
+  <div class="card" id="ping"><div class="meta">…</div></div>
+  </section>
+  <section data-pane="form" hidden>
+  <h2>Our form</h2>
+  <div class="card" id="form"><div class="meta">…</div></div>
+  <h2>Recent matches</h2>
+  <div id="list"></div>
+  <footer>Files: Downloads/agentic-football-matches · click a match to open its report</footer>
+  </section>
+  <section data-pane="settings" hidden>
+  <h2>Switches</h2>
+  <div class="card switches">
   <label class="switch" title="Presses START in the viewer by itself. Challenges are still accepted by hand.">
     <input type="checkbox" id="autoStart"><span class="knob"></span>
     <span>Auto-START <span id="autoInfo" class="muted"></span></span>
@@ -118,11 +153,7 @@
     <input type="checkbox" id="portalSave"><span class="knob"></span>
     <span>Save portal data <span id="psInfo" class="muted"></span></span>
   </label>
-  <div class="toast" id="toast"></div>
-  <h2>Our form</h2>
-  <div class="card" id="form"><div class="meta">…</div></div>
-  <h2>Agents' ping</h2>
-  <div class="card" id="ping"><div class="meta">…</div></div>
+  </div>
   <h2>Emulator</h2>
   <div class="card" id="emu"><div class="pill idle"><span class="dot"></span>checking…</div></div>
   <div class="buttons">
@@ -141,9 +172,7 @@
   <div class="buttons">
     <button id="portalNow" title="Read our team, the whole table and our matches from the portal">Refresh now</button>
   </div>
-  <h2>Recent matches</h2>
-  <div id="list"></div>
-  <footer>Files: Downloads/agentic-football-matches · click a match to open its report</footer>
+  </section>
   <script src="popup.js"></script>
 </body>
 </html>

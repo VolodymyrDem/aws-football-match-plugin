@@ -5,7 +5,7 @@
 **Scout every opponent, never lose a match recording, and never miss a challenge in the Agentic Football Cup.**
 
 ![Chrome](https://img.shields.io/badge/Chrome-extension-4285F4?logo=googlechrome&logoColor=white)
-![Version](https://img.shields.io/badge/version-1.33-22d3ee)
+![Version](https://img.shields.io/badge/version-1.34-22d3ee)
 ![Manifest](https://img.shields.io/badge/Manifest-V3-6e56cf)
 ![Install](https://img.shields.io/badge/install-one%20command-4ade80)
 ![Privacy](https://img.shields.io/badge/data-stays%20on%20your%20Mac-94a3b8)
@@ -57,7 +57,8 @@ at the top — press it and the plugin installs the new version and reloads itse
 | 🔔 **Never miss a challenge** | A macOS notification and a card with **Accept** and a countdown. One click accepts and opens the viewer. |
 | ▶️ **Auto-START** | Presses the viewer's START screen for you. Optional, off by default. |
 | 📶 **Agents' ping at a glance** | Average and p99 latency per position, yours and the opponent's. |
-| 📊 **This match, live** | Shots, an xG guide, possession and attacking-third time for both sides while you watch. |
+| 📊 **This match, live** | Shots, xG, possession and attacking-third time as numbers and bars, plus a shot map. |
+| 🏁 **Score on the icon + summary** | The live score on the plugin icon; at full time a summary: result, xG, shots, silent agents. |
 | 📈 **Form at a glance** | The opponent's last 5 results and 24-hour trend; your own form per block of 10 matches in the popup. |
 | 🛎️ **A chime you can't miss** | A sound every 12 s and a flashing portal tab while a challenge waits. |
 | ⬆️ **One-click updates** | A green *Update* button when a new version is out; it installs and reloads by itself. |

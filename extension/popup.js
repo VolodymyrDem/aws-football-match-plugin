@@ -72,6 +72,29 @@ function renderCurrent(st, h, onSite, reportId) {
     ${warns.length ? `<div class="warns">${warns.map(w => `<div>⚠ ${w}</div>`).join("")}</div>` : ""}${hint}`;
 }
 
+// ---- Last match (1.34): the newest finished match — result ours first, live stats as bars, silent agents.
+const POS5 = ["GK", "DEF", "MID", "FWD1", "FWD2"];
+async function renderLast(hist, liveId) {
+  const el = $("last");
+  const h = Object.values(hist).filter(x => x.id !== liveId && x.score && (x.rec || x.notifiedEnd)).sort((a, b) => (b.first || 0) - (a.first || 0))[0];
+  if (!h) { el.innerHTML = `<div class="meta">No finished match recorded yet.</div>`; return; }
+  const { lb } = await chrome.storage.local.get("lb");
+  const me = String((lb && lb.us && lb.us.name) || "The Drunkards").trim().toLowerCase();
+  const us = String(h.away || "").replace(/\s*\((людина|human)\)/i, "").trim().toLowerCase() === me ? 1 : 0;
+  const a = h.score[us], b = h.score[1 - us], opp = (us ? h.home : h.away) || "?";
+  const res = a > b ? ["Won", "ok"] : a < b ? ["Lost", "bad"] : ["Draw", "warn"];
+  const S = h.sum;
+  const bar = (label, x, y, f = v => v) => { const t = (x || 0) + (y || 0), w = t ? Math.round(100 * (x || 0) / t) : 50;
+    return `<div class="bar"><span class="v">${f(x)}</span><span class="t"><i class="us" style="width:${w}%"></i><i class="th" style="width:${100 - w}%"></i><b>${label}</b></span><span class="v r">${f(y)}</span></div>`; };
+  const silent = Object.entries(h.off || {}).filter(([k, v]) => +k.split(":")[0] === us && +k.split(":")[1] > 0 && v >= 20).map(([k, v]) => `${POS5[+k.split(":")[1]]} ${v} s`);
+  el.innerHTML = `<div class="sumhead"><span><span class="${res[1]}" style="font-weight:700">${res[0]}</span> vs ${esc(opp)}</span><span class="sc">${a}:${b}</span></div>
+    <div class="meta">${hhmm(h.first)} · ${[h.rec ? "recording ✓" : "recording ✗", h.report ? "report ✓" : "report ✗", h.shot || h.manualShot ? "screenshot ✓" : "screenshot ✗"].join(" · ")}</div>
+    ${S ? `<div class="bars">${bar("shots", S.sh[us], S.sh[1 - us])}${bar("xG", S.xg[us], S.xg[1 - us], v => (v || 0).toFixed(1))}${S.pos ? bar("possession", S.pos[us], S.pos[1 - us], v => v + "%") : ""}${S.third ? bar("attacking third", S.third[us], S.third[1 - us], v => v + "%") : ""}</div>` : `<div class="meta" style="margin-top:6px">No live stats for this one (recorded before 1.34).</div>`}
+    ${silent.length ? `<div class="warns">Silent agents (20+ s without a command): ${esc(silent.join(", "))}</div>` : ""}`;
+  el.onclick = () => chrome.tabs.create({ url: `${SITE}/matches/${h.id}/report` });
+  el.style.cursor = "pointer"; el.title = "Open the report";
+}
+
 function renderList(hist, liveId) {
   const rows = Object.values(hist).filter(h => !String(h.id).startsWith("unknown"))
     .sort((a, b) => b.first - a.first).slice(0, 12);
@@ -104,6 +127,7 @@ async function refresh() {
   cur = { id, st, h };
   renderCurrent(st, h, onSite, reportM && reportM[1]);
   renderList(hist, st && !st.stopped ? st.id : null);
+  renderLast(hist, st && !st.stopped && !(h && h.rec) ? st.id : null);
   renderAuto();
   renderAA();
   $("save").hidden = !(onSite && st && !st.stopped && st.n && !(h && h.rec));
@@ -355,6 +379,15 @@ $("list").addEventListener("click", ev => {
 });
 
 $("ver").textContent = "v" + chrome.runtime.getManifest().version;
+
+// ---- Tabs (1.34): Match / Form / Settings; the last one is remembered. Challenges stay on top of all.
+function showTab(name) {
+  for (const b of document.querySelectorAll("#tabs button")) b.classList.toggle("on", b.dataset.tab === name);
+  for (const p of document.querySelectorAll("section[data-pane]")) p.hidden = p.dataset.pane !== name;
+  try { localStorage.setItem("__tab", name); } catch (e) {}
+}
+$("tabs").addEventListener("click", e => { const b = e.target.closest("button[data-tab]"); if (b) showTab(b.dataset.tab); });
+{ let t = "match"; try { t = localStorage.getItem("__tab") || "match"; } catch (e) {} showTab(["match", "form", "settings"].includes(t) ? t : "match"); }
 
 // ---- Update (1.31). An unpacked extension serves its files from disk, so manifest.json read through
 // the extension shows the version on disk; when it is newer than the one Chrome runs, "Update" reloads the

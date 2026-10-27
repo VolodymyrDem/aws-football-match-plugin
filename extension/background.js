@@ -51,7 +51,29 @@ function badge(tabId, text, color) {
   chrome.action.setBadgeBackgroundColor({ tabId, color });
 }
 
-const RED = "#c62828", GREEN = "#2e7d32", ORANGE = "#ef6c00", GREY = "#9e9e9e";
+const RED = "#c62828", GREEN = "#2e7d32", ORANGE = "#ef6c00", GREY = "#9e9e9e", BLUE = "#0e7490";
+// 1.34: the live score on the icon, ours first ("2:1"): green ahead, red behind, blue level. Also as the
+// icon's default for every tab, so it shows while you are on another tab; cleared once the match is saved.
+let scoreOwner = null;
+function scoreBadge(tabId, id, score, usIdx) {
+  if (!score) return;
+  const a = score[usIdx], b = score[1 - usIdx], text = `${a}:${b}`, color = a > b ? GREEN : a < b ? RED : BLUE;
+  badge(tabId, text, color);
+  scoreOwner = id;
+  chrome.action.setBadgeText({ text }); chrome.action.setBadgeBackgroundColor({ color });
+}
+function clearScoreBadge(id) {
+  if (scoreOwner !== id) return;
+  scoreOwner = null;
+  chrome.action.setBadgeText({ text: "" });
+}
+// which side we are, from the team names in the viewer's header and our name from the portal table
+async function ourSide(h) {
+  const { lb } = await chrome.storage.local.get("lb");
+  const me = String((lb && lb.us && lb.us.name) || "The Drunkards").trim().toLowerCase();
+  const n = x => String(x || "").replace(/\s*\((людина|human)\)/i, "").trim().toLowerCase();
+  return h && n(h.away) === me ? 1 : 0;
+}
 const safe = id => String(id).replace(/[^0-9a-zA-Z-]/g, "");
 
 // ---- match history: {id: {id, first, last, home, away, score, t, t0, n, reloads,
@@ -103,11 +125,31 @@ async function endCheck(id, final) {
     sendEnd(id, h, miss);
   } finally { ending.delete(id); }
 }
-function sendEnd(id, h, miss) {
+// 1.34: the end-of-match notification is a summary — result ours first, xG, shots, possession, our
+// players that went 20+ s without an agent command — then what was saved.
+const POS5 = ["GK", "DEF", "MID", "FWD1", "FWD2"];
+function summaryLines(h, us) {
+  const out = [];
+  const S = h.sum, f = (arr, k = v => v) => arr ? `${k(arr[us])}:${k(arr[1 - us])}` : "";
+  if (S) out.push([`xG ${f(S.xg, v => (v || 0).toFixed(1))}`, `shots ${f(S.sh)}`, S.pos ? `possession ${S.pos[us]}%` : ""].filter(Boolean).join(" · "));
+  const silent = Object.entries(h.off || {}).filter(([k, v]) => +k.split(":")[0] === us && +k.split(":")[1] > 0 && v >= 20)
+    .map(([k, v]) => `${POS5[+k.split(":")[1]]} ${v} s`);
+  if (silent.length) out.push(`Silent agents: ${silent.join(", ")}`);
+  return out;
+}
+async function sendEnd(id, h, miss) {
   chrome.alarms.clear("check:" + id);
-  if (miss.length) notify(id, "end", `⚠ ${title(h)}`, `Missing: ${miss.join(", ")}. Click to open the report and the files get saved.`);
-  else notify(id, "end", title(h), "Saved: recording ✓ · report ✓ · screenshot ✓" +
-    (h.report && h.report.full === false ? " (report without the AI summary yet; saved again when it appears)" : ""));
+  clearScoreBadge(id);
+  const us = await ourSide(h);
+  let head = title(h);
+  if (h.score && h.home && h.away) {
+    const a = h.score[us], b = h.score[1 - us], opp = us ? h.home : h.away;
+    head = `${a > b ? "Won" : a < b ? "Lost" : "Draw"} ${a}:${b} vs ${opp}`;
+  }
+  const lines = summaryLines(h, us);
+  if (miss.length) notify(id, "end", `⚠ ${head}`, [...lines, `Missing: ${miss.join(", ")} — click to save from the report.`].join("\n"));
+  else notify(id, "end", head, [...lines, "Saved: recording ✓ report ✓ screenshot ✓" +
+    (h.report && h.report.full === false ? " (AI summary comes later)" : "")].join("\n"));
 }
 chrome.alarms.onAlarm.addListener(a => { if (a.name.startsWith("check:")) endCheck(a.name.slice(6), true); });
 chrome.notifications.onClicked.addListener(nid => {
@@ -141,10 +183,17 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
       if (tm && !h.report) Object.assign(h, tm);
       if (msg.score && !h.report) h.score = msg.score;
       Object.assign(h, { t: msg.t, t0: msg.t0, n: msg.n, reloads: msg.reloads });
+      // 1.34: the live stats for the end-of-match summary (home / away order, like score)
+      if (msg.st && msg.st.sh) h.sum = { sh: msg.st.sh, xg: msg.st.xg, pos: msg.st.pos, third: msg.st.third,
+        goals: (msg.st.map || []).filter(m => m[6]).map(m => [m[0], m[1], m[2]]) };
+      if (msg.ctl) {   // seconds our players went without an agent command, worst seen (silent agents)
+        h.off = h.off || {};
+        for (const [k, v] of Object.entries(msg.ctl)) if (v && v[1] != null && v[1] > (h.off[k] || 0)) h.off[k] = v[1];
+      }
     }).then(async () => {
       const { hist = {} } = await chrome.storage.local.get("hist");
       const h = hist[msg.id];
-      if (h && h.rec) return;                          // saved: keep OK / REP
+      if (h && h.rec) { clearScoreBadge(msg.id); return; }   // saved: keep OK / REP
       const late = msg.t0 !== null && msg.t0 > 3;      // started after kick-off
       const stale = msg.lastWall && Date.now() - msg.lastWall > 8000 && msg.t < 118;
       if (h && late && msg.n > 0 && !h.notifiedLate) {
@@ -155,7 +204,10 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
         updateHist(msg.id, x => { x.notifiedStale = 1; });
         notify(msg.id, "stale", "⚠ No match frames", `${title(h)}: ${Math.round((Date.now() - msg.lastWall) / 1000)} s without frames. Reload the viewer tab; recording continues.`);
       }
-      if (!msg.stopped) badge(tabId, stale ? "!" : "REC", late || stale ? ORANGE : RED);
+      if (msg.stopped) return;
+      if (stale) badge(tabId, "!", ORANGE);
+      else if (msg.score && msg.n > 40) scoreBadge(tabId, msg.id, msg.score, await ourSide(h));
+      else badge(tabId, "REC", late ? ORANGE : RED);
     });
     return;
   }

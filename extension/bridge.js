@@ -433,23 +433,51 @@
     const nn = n => String(n || "").replace(/\s*\((\u043b\u044e\u0434\u0438\u043d\u0430|human)\)/i, "").trim().toLowerCase();
     let H = null, PING = null, LIVE = null, FORM = null, folded = false, host = null, box = null;
     try { folded = localStorage.getItem("__drk_panel_folded") === "1"; } catch (e) {}
+    // 1.34: own compact font (the page's pixel font made every label wrap), collapsible sections
+    // (remembered), bars + a shot map next to the numbers, "waiting for kick-off" before the first frames.
+    let closed = {};
+    try { closed = JSON.parse(localStorage.getItem("__drk_sec") || "{}") || {}; } catch (e) {}
     const css = `
-      #drk-panel{box-sizing:border-box;padding:14px 16px;background:#14151f;border:2px solid #22d3ee;border-radius:6px;
-        color:#e5e7eb;font:13px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace}
+      #drk-panel{box-sizing:border-box;padding:12px 14px;background:#11131c;border:1px solid #22d3ee55;border-radius:10px;
+        color:#e5e7eb;font:12.5px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,sans-serif;letter-spacing:0;
+        font-variant-numeric:tabular-nums;text-transform:none;text-align:left}
+      #drk-panel *{box-sizing:border-box;font-family:inherit;letter-spacing:inherit}
       #drk-panel.folded{padding:8px 12px;margin-top:8px}
-      #drk-panel .hd{display:flex;align-items:baseline;gap:8px}
-      #drk-panel .hd .nm{font-size:18px;font-weight:700;color:#f8fafc}
-      #drk-panel .hd .rk{color:#22d3ee;font-weight:700}
-      #drk-panel .hd button{margin-left:auto;background:none;border:1px solid #334155;color:#94a3b8;border-radius:4px;cursor:pointer;font:inherit;padding:0 6px}
-      #drk-panel.folded .bd{display:none}
-      #drk-panel .sec{margin:12px 0 0}
-      #drk-panel .lbl{color:#64748b;font-size:11px;text-transform:uppercase;letter-spacing:.08em;margin-bottom:3px}
-      #drk-panel .kv{display:flex;justify-content:space-between;gap:8px}
+      #drk-panel .hd{display:flex;align-items:center;gap:8px}
+      #drk-panel .hd .nm{font-size:15px;font-weight:700;color:#f8fafc;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;min-width:0}
+      #drk-panel .hd button{flex:none;background:none;border:1px solid #334155;color:#94a3b8;border-radius:6px;cursor:pointer;font-size:11px;padding:1px 7px}
+      #drk-panel .chips{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}
+      #drk-panel .chip{padding:1px 7px;border-radius:9px;background:#1e2433;font-size:11px;white-space:nowrap;color:#cbd5e1}
+      #drk-panel .chip b{font-weight:700}
+      #drk-panel.folded .bd,#drk-panel.folded .chips{display:none}
+      #drk-panel .sec{margin-top:10px;border-top:1px solid #1f2937;padding-top:6px}
+      #drk-panel .sh{display:flex;align-items:center;justify-content:space-between;cursor:pointer;user-select:none;
+        color:#64748b;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.07em}
+      #drk-panel .sh:hover{color:#94a3b8}
+      #drk-panel .sh .ar{font-size:10px}
+      #drk-panel .sb{margin-top:5px}
+      #drk-panel .sec.closed .sb{display:none}
+      #drk-panel .kv{display:flex;justify-content:space-between;align-items:baseline;gap:10px;padding:1px 0}
+      #drk-panel .kv>span:first-child{color:#94a3b8;white-space:nowrap}
+      #drk-panel .kv>span:last-child{text-align:right;white-space:nowrap;min-width:0}
+      #drk-panel .kv.w>span:last-child{white-space:normal}
       #drk-panel .kv b{font-weight:700}
-      #drk-panel .g{color:#4ade80}#drk-panel .o{color:#fbbf24}#drk-panel .r{color:#f87171}#drk-panel .m{color:#94a3b8}
-      #drk-panel table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
-      #drk-panel th{color:#64748b;font-weight:400;font-size:11px;text-align:right;padding:0 3px 2px}
-      #drk-panel td{text-align:right;padding:2px 3px;border-top:1px solid #1f2937}
+      #drk-panel .g{color:#4ade80}#drk-panel .o{color:#fbbf24}#drk-panel .r{color:#f87171}#drk-panel .m{color:#94a3b8}#drk-panel .us{color:#22d3ee}#drk-panel .th{color:#fb923c}
+      #drk-panel .note{color:#64748b;font-size:10.5px;margin-top:4px;line-height:1.35}
+      #drk-panel .wait{color:#94a3b8;font-size:12px;padding:4px 0}
+      #drk-panel .fr{display:inline-flex;gap:3px}
+      #drk-panel .fr i{display:inline-block;width:15px;height:15px;border-radius:3px;font:700 9.5px/15px inherit;font-style:normal;text-align:center;color:#0b0c10}
+      #drk-panel .fr .W{background:#f87171}#drk-panel .fr .L{background:#4ade80}#drk-panel .fr .D{background:#fbbf24}
+      #drk-panel .br{display:grid;grid-template-columns:38px 1fr 38px;align-items:center;gap:6px;margin:3px 0}
+      #drk-panel .br .lb{grid-column:1/4;color:#94a3b8;font-size:11px;margin-bottom:-2px}
+      #drk-panel .br .a{text-align:right;font-weight:700}#drk-panel .br .z{text-align:left;font-weight:700}
+      #drk-panel .br .t{height:8px;border-radius:4px;background:#1f2937;display:flex;overflow:hidden}
+      #drk-panel .br .t i{display:block;height:100%}
+      #drk-panel .lg{display:flex;justify-content:space-between;font-size:11px;font-weight:600;margin-bottom:2px}
+      #drk-panel svg{display:block;width:100%;height:auto;margin-top:6px}
+      #drk-panel table{width:100%;border-collapse:collapse}
+      #drk-panel th{color:#64748b;font-weight:500;font-size:10.5px;text-align:right;padding:0 3px 2px;white-space:nowrap}
+      #drk-panel td{text-align:right;padding:2px 3px;border-top:1px solid #1f2937;white-space:nowrap}
       #drk-panel th:first-child,#drk-panel td:first-child{text-align:left}`;
     const lat = v => v == null ? `<span class="m">—</span>` : `<span class="${v < 300 ? "g" : v < 900 ? "o" : "r"}">${Math.round(v)}</span>`;
     const pct = (a, n) => n ? Math.round(100 * a / n) : 0;
@@ -463,61 +491,80 @@
       const us = (H && H.lb && H.lb.us && H.lb.us.name) || "The Drunkards";
       return nn(m[1].replace(/^.*Back to matches\s*/i, "")) === nn(us) ? m[2].replace(/\s*LIVE$/, "").trim() : m[1].replace(/^.*Back to matches\s*/i, "").trim();
     };
-    // 1.27: agents live. "ctl" = share of the last 30 s each player spent on an agent command (from
-    // the game stream, both teams; recorder.js); calls / longest pause / last call of our agents from
-    // TRACE in CloudWatch (native helper, every 15 s; not in the team build).
+    const sec = (key, title, body, right = "") => `<div class="sec${closed[key] ? " closed" : ""}" data-sec="${key}">
+        <div class="sh"><span>${title}</span><span>${right} <span class="ar">${closed[key] ? "▸" : "▾"}</span></span></div>
+        <div class="sb">${body}</div></div>`;
+    const flowing = () => !!(lastStatus && lastStatus.lastWall && Date.now() - lastStatus.lastWall < 10000 && lastStatus.n > 40);
+    const sides = () => {
+      const pmh = PING && PING.match && PING.match.id === mid ? PING.match : null;
+      const named = !!(pmh && typeof pmh.home === "boolean");
+      const us = named ? (pmh.home ? 0 : 1) : 0;
+      return { us, them: 1 - us, named, A: named ? "us" : "home", B: named ? "them" : "away" };
+    };
+    // 1.27: agents live (game stream for both teams; calls / pause from TRACE through the native helper).
     const pctCell = v => v == null ? `<span class="m">—</span>` : `${v}%`;
     const agoCell = v => v == null ? `<span class="m">—</span>` : `<span class="${v > 20 ? "r" : v > 10 ? "o" : ""}">${v}s</span>`;
-    const liveSec = () => {
+    const liveBody = () => {
       const ctl = lastStatus && lastStatus.ctl;
-      const pmh = PING && PING.match && PING.match.id === mid ? PING.match : null;
-      if (!ctl || !pmh || typeof pmh.home !== "boolean") return "";
-      const us = pmh.home ? 0 : 1, them = 1 - us;
+      if (!flowing() || !ctl) return `<div class="wait">Starts with the match.</div>`;
+      const { us, them } = sides();
       const tr = LIVE && LIVE.ok && LIVE.pos ? LIVE.pos : null;
       const rows = POSN.map((p, i) => {
         const a = ctl[us + ":" + i] || [], b = ctl[them + ":" + i] || [], t = tr && tr[p];
         const calls = t ? `<span class="${t.calls < 5 ? "r" : t.calls < 15 ? "o" : ""}">${t.calls}</span>` : `<span class="m">—</span>`;
         const gap = t && t.maxgap != null ? `<span class="${t.maxgap > 10 ? "r" : t.maxgap > 5 ? "o" : ""}">${t.maxgap}s</span>` : `<span class="m">—</span>`;
-        // the keeper's rules hand most moments to the game's own AI, so a long "last" is normal there
         return `<tr><td>${p}</td><td>${pctCell(a[0])}</td><td>${i === 0 && a[1] != null ? `${a[1]}s` : agoCell(a[1])}</td><td>${pctCell(b[0])}</td>${tr ? `<td>${calls}</td><td>${gap}</td>` : ""}</tr>`;
       }).join("");
-      const note = tr ? `calls/min and longest pause: our agents in CloudWatch (TRACE), last 60 s`
-        : LIVE && LIVE.missing ? "" : LIVE && LIVE.error ? `TRACE: ${E(LIVE.error).slice(0, 80)}` : "";
-      return `<div class="sec"><div class="lbl">agents live</div>
-        <table><tr><th></th><th title="share of the last 30 s our player spent on an agent command">ctl</th><th title="seconds our player has been without an agent command (0 = under one now)">off</th><th title="share of the last 30 s their player spent on an agent command">them</th>${tr ? `<th title="our agent's calls in the last 60 s (TRACE)">calls</th><th title="longest pause between our agent's calls, last 60 s">pause</th>` : ""}</tr>${rows}</table>
-        <div class="m" style="font-size:11px;margin-top:4px">ctl / them = time under an agent command, last 30 s; off = seconds without one now (game stream)${note ? " · " + note : ""}</div></div>`;
+      const note = tr ? " · calls / pause: our agents in CloudWatch, last 60 s" : LIVE && LIVE.error && !LIVE.missing ? ` · TRACE: ${E(LIVE.error).slice(0, 60)}` : "";
+      return `<table><tr><th></th><th title="share of the last 30 s our player spent on an agent command">ctl</th><th title="seconds our player has been without an agent command">off</th><th title="their player's share under an agent command">them</th>${tr ? `<th title="our agent's calls in the last 60 s">calls</th><th title="longest pause between calls, last 60 s">pause</th>` : ""}</tr>${rows}</table>
+        <div class="note">ctl = time under an agent command (30 s) · off = seconds without one${note}</div>`;
     };
-    // 1.28: this match live, from the game stream (recorder.js "st"): shots, an xG guide from shot
-    // distance, possession and time the ball spends in each side's attacking third.
-    const statSec = () => {
+    // 1.28 numbers + 1.34 bars and a shot map. Bar = our share of the two sides' total.
+    const bar = (label, a, b, f = v => v) => {
+      const t = (a || 0) + (b || 0), w = t ? Math.round(100 * (a || 0) / t) : 50;
+      return `<div class="br"><div class="lb">${label}</div><div class="a us">${f(a)}</div>
+        <div class="t"><i style="width:${w}%;background:#22d3ee"></i><i style="width:${100 - w}%;background:#fb923c"></i></div><div class="z th">${f(b)}</div></div>`;
+    };
+    // pitch 13 x 7.3 (x ±6.5 goal lines); our shots drawn attacking right, theirs attacking left
+    const shotMap = (map, us) => {
+      const W = 260, Hh = 146, sx = x => (x + 6.5) / 13 * W, sz = z => (z + 3.65) / 7.3 * Hh;
+      const dots = (map || []).map(m => {
+        const mine = m[1] === us, x = mine ? m[3] : -m[3], z = mine ? m[4] : -m[4];
+        const r = 3 + Math.round((m[5] || 0) * 10), c = mine ? "#22d3ee" : "#fb923c";
+        return `<circle cx="${sx(Math.max(-6.5, Math.min(6.5, x))).toFixed(1)}" cy="${sz(Math.max(-3.65, Math.min(3.65, z))).toFixed(1)}" r="${r}"
+          fill="${m[6] ? c : "none"}" stroke="${c}" stroke-width="1.5" opacity="${m[6] ? 1 : .8}"><title>${Math.round(m[0])}s ${POSN[m[2]] || ""} xG ${m[5]}${m[6] ? " · GOAL" : ""}</title></circle>`;
+      }).join("");
+      const gh = sz(0.9) - sz(-0.9);
+      return `<svg viewBox="0 0 ${W} ${Hh}" role="img" aria-label="shot map">
+        <rect x=".5" y=".5" width="${W - 1}" height="${Hh - 1}" rx="4" fill="#0f2a1c" stroke="#1f5135"/>
+        <line x1="${W / 2}" y1="0" x2="${W / 2}" y2="${Hh}" stroke="#1f5135"/><circle cx="${W / 2}" cy="${Hh / 2}" r="18" fill="none" stroke="#1f5135"/>
+        <rect x="0" y="${(Hh - 3 * gh) / 2}" width="26" height="${3 * gh}" fill="none" stroke="#1f5135"/>
+        <rect x="${W - 26}" y="${(Hh - 3 * gh) / 2}" width="26" height="${3 * gh}" fill="none" stroke="#1f5135"/>
+        <rect x="0" y="${(Hh - gh) / 2}" width="3" height="${gh}" fill="#fb923c88"/><rect x="${W - 3}" y="${(Hh - gh) / 2}" width="3" height="${gh}" fill="#22d3ee88"/>
+        ${dots}</svg>`;
+    };
+    const statBody = () => {
       const s = lastStatus && lastStatus.st;
-      const pmh = PING && PING.match && PING.match.id === mid ? PING.match : null;
-      if (!s || !s.sh) return "";
-      const us = pmh && typeof pmh.home === "boolean" ? (pmh.home ? 0 : 1) : 0, them = 1 - us;
-      const named = !!(pmh && typeof pmh.home === "boolean");
-      const cmp = (a, b, f = v => v) => `<td class="${a > b ? "g" : a < b ? "r" : ""}">${f(a)}</td><td>${f(b)}</td>`;
-      const pos = s.pos ? cmp(s.pos[us], s.pos[them], v => v + "%") : "<td>—</td><td>—</td>";
-      const th = s.third ? cmp(s.third[us], s.third[them], v => v + "%") : "<td>—</td><td>—</td>";
-      const last = (s.last || []).slice(-3).reverse().map(x => `${Math.round(x[0])}s ${x[1] === us ? (named ? "us" : "home") : (named ? "them" : "away")} ${POSN[x[2]] || x[2]} ${x[3]}m`).join(" · ");
-      return `<div class="sec"><div class="lbl">this match live</div>
-        <table><tr><th></th><th>${named ? "us" : "home"}</th><th>${named ? "them" : "away"}</th></tr>
-          <tr><td>Shots</td>${cmp(s.sh[us], s.sh[them])}</tr>
-          <tr><td title="sum over shots of the share of shots from that distance that went in (280 recorded matches)">xG guide</td>${cmp(s.xg[us], s.xg[them], v => v.toFixed(2))}</tr>
-          <tr><td>Possession</td>${pos}</tr>
-          <tr><td title="share of play time the ball is in this side's attacking third">Ball in attack third</td>${th}</tr></table>
-        ${last ? `<div class="m" style="font-size:11px;margin-top:4px">last shots: ${E(last)}</div>` : ""}</div>`;
+      if (!s || !s.sh || !flowing() && !(s.frames > 40)) return `<div class="wait">Waiting for kick-off…</div>`;
+      const { us, them, A, B } = sides();
+      const last = (s.last || []).slice(-3).reverse().map(x => `${Math.round(x[0])}s ${x[1] === us ? A : B} ${POSN[x[2]] || x[2]} ${x[3]}m`).join(" · ");
+      return `<div class="lg"><span class="us">● ${A}</span><span class="th">${B} ●</span></div>
+        ${bar("Shots", s.sh[us], s.sh[them])}
+        ${bar(`<span title="sum over shots of the share of shots from that distance that went in (280 recorded matches)">xG guide</span>`, s.xg[us], s.xg[them], v => (v || 0).toFixed(2))}
+        ${s.pos ? bar("Possession", s.pos[us], s.pos[them], v => v + "%") : ""}
+        ${s.third ? bar(`<span title="share of play time the ball is in this side's attacking third">Ball in attacking third</span>`, s.third[us], s.third[them], v => v + "%") : ""}
+        ${shotMap(s.map, us)}
+        <div class="note">● filled = goal · size = xG · ${A} attack →${last ? `<br>last: ${E(last)}` : ""}</div>`;
     };
-    // 1.28: the opponent's form — their last 5 results (newest first) and win rate over the last 24 h
-    // against their overall, from their own match list on the portal.
-    const formHtml = () => {
+    // 1.28: the opponent's form, from their own match list on the portal.
+    const formRows = () => {
       if (!FORM || !FORM.ok || !FORM.last.length) return "";
-      const dot = r => `<b class="${r === "W" ? "r" : r === "L" ? "g" : "o"}" title="${E(r.t || "")}">${r}</b>`;
-      const seq = FORM.last.map(x => `<span title="${E(x.t)}">${dot(x.r)}</span>`).join(" ");
-      const day = FORM.day.n ? `${FORM.day.wr}% <span class="m">(${FORM.day.n} in 24 h)</span>` : `<span class="m">no games in 24 h</span>`;
-      const arrow = FORM.day.n >= 3 && FORM.all.n ? (FORM.day.wr > FORM.all.wr + 10 ? ` <span class="r">▲ rising</span>` : FORM.day.wr < FORM.all.wr - 10 ? ` <span class="g">▼ falling</span>` : "") : "";
-      return `<div class="kv"><span title="their last 5 results, newest first (red = they won)">Form</span><span>${seq}</span></div>
-        <div class="kv"><span>Win rate, last 24 h</span><span>${day}${arrow}</span></div>
-        <div class="kv"><span>Goals per game</span><span>${FORM.all.gf}:${FORM.all.ga} <span class="m">(last ${FORM.all.n})</span></span></div>`;
+      const seq = FORM.last.map(x => `<i class="${x.r}" title="${E(x.t)}">${x.r}</i>`).join("");
+      const day = FORM.day.n ? `${FORM.day.wr}% <span class="m">· ${FORM.day.n} games</span>` : `<span class="m">no games</span>`;
+      const arrow = FORM.day.n >= 3 && FORM.all.n ? (FORM.day.wr > FORM.all.wr + 10 ? ` <span class="r">▲</span>` : FORM.day.wr < FORM.all.wr - 10 ? ` <span class="g">▼</span>` : "") : "";
+      return `<div class="kv"><span title="their last 5, newest first (red = they won)">Form</span><span class="fr">${seq}</span></div>
+        <div class="kv"><span>Last 24 h</span><span>${day}${arrow}</span></div>
+        <div class="kv"><span>Goals / game</span><span>${FORM.all.gf}:${FORM.all.ga} <span class="m">· last ${FORM.all.n}</span></span></div>`;
     };
     const loadForm = () => {
       const pm = PING && PING.match && PING.match.id === mid ? PING.match : null;
@@ -534,43 +581,54 @@
         .sort((a, b) => String(a.at).localeCompare(String(b.at))) : [];
       const w = ms.filter(m => m.us > m.them).length, l = ms.filter(m => m.us < m.them).length, d = ms.length - w - l;
       const gf = ms.reduce((a, m) => a + m.us, 0), ga = ms.reduce((a, m) => a + m.them, 0), last = ms[ms.length - 1];
-      const overall = ot ? `<b class="${pct(ot.w, ot.p) >= 60 ? "r" : pct(ot.w, ot.p) >= 45 ? "o" : "g"}">${pct(ot.w, ot.p)}%</b> <span class="m">(${ot.w}-${ot.d}-${ot.l} of ${ot.p})</span>`
-        : `<span class="m">${H ? "not in the table" : "…"}</span>`;
-      const vsUs = !H ? "…" : ms.length ? `<b class="${l > w ? "r" : l === w ? "o" : "g"}">${pct(l, ms.length)}%</b> <span class="m">(${l} of ${ms.length})</span>` : `<span class="m">never played</span>`;
+      const wr = ot ? pct(ot.w, ot.p) : null, vs = ms.length ? pct(l, ms.length) : null;
+      const chips = [ot ? `<span class="chip">#<b>${ot.rank}</b> of ${H.lb.total || H.lb.teams.length}</span>` : "",
+        wr != null ? `<span class="chip">WR <b class="${wr >= 60 ? "r" : wr >= 45 ? "o" : "g"}">${wr}%</b></span>` : "",
+        vs != null ? `<span class="chip">vs us <b class="${vs >= 50 ? "r" : vs >= 25 ? "o" : "g"}">${vs}%</b></span>` : (H ? `<span class="chip">never played us</span>` : "")].join("");
+      const oppBody = `<div class="kv"><span>Win rate</span><span>${ot ? `<b class="${wr >= 60 ? "r" : wr >= 45 ? "o" : "g"}">${wr}%</b> <span class="m">· ${ot.w}-${ot.d}-${ot.l}</span>` : `<span class="m">${H ? "not in the table" : "…"}</span>`}</span></div>
+          <div class="kv"><span>Win rate vs us</span><span>${!H ? "…" : ms.length ? `<b class="${l > w ? "r" : l === w ? "o" : "g"}">${vs}%</b> <span class="m">· ${l} of ${ms.length}</span>` : `<span class="m">never played</span>`}</span></div>
+          <div class="kv"><span>Our record</span><span>${ms.length ? `<b class="${w > l ? "g" : w < l ? "r" : "o"}">${w}-${d}-${l}</b> <span class="m">· ${gf}:${ga}</span>` : "—"}</span></div>
+          ${formRows()}
+          ${last ? `<div class="kv"><span>Last vs us</span><span>${last.us}:${last.them}${last.version ? ` <span class="m">· ${E(last.version)}</span>` : ""}</span></div>` : ""}`;
       const ag = (PING && PING.agents) || [];
-      // 1.26: the portal fills the per-match figures (us / them) only after full time; until then
-      // those two columns are left out instead of showing dashes.
       const hasMatch = !!(pm && ((pm.us || []).some(v => v != null) || (pm.them || []).some(v => v != null)));
       const rows = POSN.map((p, i) => { const a = ag.find(x => x.pos === i) || {};
         return `<tr><td>${p}</td>${hasMatch ? `<td>${lat(pm.us ? pm.us[i] : null)}</td><td>${lat(pm.them ? pm.them[i] : null)}</td>` : ""}<td>${lat(a.latency_ms)}</td><td>${lat(a.p99_latency_ms)}</td></tr>`; }).join("");
       const obsAt = PING && PING.fetched ? new Date(PING.fetched).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }) : "";
+      const pingBody = `<table><tr><th></th>${hasMatch ? "<th>match</th><th>them</th>" : ""}<th title="average latency of our agents, portal figures">avg</th><th title="1 call in 100 is slower than this">p99</th></tr>${rows}</table>
+          <div class="note">avg / p99: portal, recent hours${obsAt ? ` (${obsAt})` : ""}${!hasMatch && pm && pm.status !== "completed" ? " · this match's figures after full time" : ""}</div>`;
       const st = lastStatus;
-      const recLine = st && st.n ? `<span class="${st.lastWall && Date.now() - st.lastWall < 8000 ? "g" : "o"}">● recording</span> ${Math.round(st.t || 0)} s · ${Number(st.n).toLocaleString("en-GB")} frames${st.t0 > 3 ? ` <span class="o">· from ${Math.round(st.t0)} s</span>` : ""}`
-        : `<span class="m">recording waits for frames</span>`;
+      const recLine = st && st.n ? `<span class="${st.lastWall && Date.now() - st.lastWall < 8000 ? "g" : "o"}">● recording</span> <span class="m">${Math.round(st.t || 0)} s · ${Number(st.n).toLocaleString("en-GB")} frames${st.t0 > 3 ? ` · from ${Math.round(st.t0)} s` : ""}</span>`
+        : `<span class="m">waits for frames</span>`;
       const aa = H && H.autoAccept && H.autoAccept.on && Date.now() < (H.autoAccept.until || 0);
       const as = !autoOn ? `<span class="m">off</span>` : autoDone ? `<span class="g">${E(autoLast || "done")}</span>` : `<span class="o">${E(autoLast || "waiting")}</span>`;
+      const plugBody = `<div class="kv w"><span>Recording</span><span>${recLine}</span></div>
+          <div class="kv w"><span>Auto-START</span><span>${as}</span></div><div class="kv"><span>Auto-accept</span><span>${aa ? `<span class="g">on</span>` : `<span class="m">off</span>`}</span></div>`;
+      const sc = st && st.score ? (() => { const { us } = sides(); return `${st.score[us]}:${st.score[1 - us]}`; })() : "";
       box.className = folded ? "folded" : "";
-      box.innerHTML = `<div class="hd"><span class="nm">${E(oppName)}</span>${ot ? `<span class="rk">#${ot.rank}</span><span class="m">of ${H.lb.total || H.lb.teams.length}</span>` : ""}
-          <button title="${folded ? "Show the panel" : "Fold, show the Coach Live Feed"}">${folded ? "▸" : "▾"}</button></div>
+      box.innerHTML = `<div class="hd"><span class="nm" title="${E(oppName)}">${E(oppName)}</span>${folded && sc ? `<b>${sc}</b>` : ""}
+          <button data-fold title="${folded ? "Show the panel" : "Fold, show the Coach Live Feed"}">${folded ? "▸" : "▾"}</button></div>
+        <div class="chips">${chips}</div>
         <div class="bd">
-          <div class="sec"><div class="kv"><span>Win rate overall</span><span>${overall}</span></div>
-            <div class="kv"><span>Win rate vs us</span><span>${vsUs}</span></div>
-            <div class="kv"><span>Our record vs them</span><span>${ms.length ? `<b class="${w > l ? "g" : w < l ? "r" : "o"}">${w}-${d}-${l}</b> <span class="m">· goals ${gf}:${ga}</span>` : "—"}</span></div>
-            ${formHtml()}
-            ${last ? `<div class="kv"><span>Last match</span><span>${last.us}:${last.them}${last.version ? ` <span class="m">(${E(last.version)})</span>` : ""}</span></div>` : ""}</div>
-          <div class="sec"><div class="lbl">our agents' ping, ms</div>
-            <table><tr><th></th>${hasMatch ? "<th>match</th><th>them</th>" : ""}<th title="average latency of our agents, portal figures">avg</th><th title="1 call in 100 is slower than this">p99</th></tr>${rows}</table>
-            <div class="m" style="font-size:11px;margin-top:4px">avg / p99: portal, recent hours${obsAt ? ` (${obsAt})` : ""}${!hasMatch && pm && pm.status !== "completed" ? " · this match's figures come after full time" : ""}</div></div>
-          ${statSec()}
-          ${liveSec()}
-          <div class="sec"><div class="lbl">plugin</div><div>${recLine}</div>
-            <div>Auto-START: ${as}</div><div>Auto-accept: ${aa ? `<span class="g">on</span>` : `<span class="m">off</span>`}</div></div>
+          ${sec("opp", "Opponent", oppBody)}
+          ${sec("live", "This match", statBody(), st && st.score ? `<b style="color:#e5e7eb;font-size:12px">${sc}</b>` : "")}
+          ${sec("agents", "Agents live", liveBody())}
+          ${sec("ping", "Our agents' ping, ms", pingBody)}
+          ${sec("plugin", "Plugin", plugBody)}
         </div>`;
-      box.querySelector("button").onclick = () => {
+    };
+    // clicks: fold the panel, open / close a section (remembered)
+    const onPanelClick = ev => {
+      if (ev.target.closest("[data-fold]")) {
         folded = !folded;
         try { localStorage.setItem("__drk_panel_folded", folded ? "1" : "0"); } catch (e) {}
-        layout(); render();
-      };
+        layout(); render(); return;
+      }
+      const h = ev.target.closest(".sh"), s = h && h.parentElement;
+      if (!s || !s.dataset.sec) return;
+      closed[s.dataset.sec] = !closed[s.dataset.sec];
+      try { localStorage.setItem("__drk_sec", JSON.stringify(closed)); } catch (e) {}
+      render();
     };
     // the card: the smallest box around the "Coach Live Feed" title that is at least 100 px tall
     const findCard = () => {
@@ -621,6 +679,7 @@
       for (const ch of host.children) if (ch.dataset.drkDisplay === undefined) ch.dataset.drkDisplay = ch.style.display || "";
       box = document.createElement("div");
       box.id = "drk-panel";
+      box.addEventListener("click", onPanelClick);
       card.appendChild(box);
       layout(); render();
     };
