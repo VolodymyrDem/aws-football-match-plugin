@@ -438,47 +438,57 @@
     let closed = {};
     try { closed = JSON.parse(localStorage.getItem("__drk_sec") || "{}") || {}; } catch (e) {}
     const css = `
-      #drk-panel{box-sizing:border-box;padding:12px 14px;background:#11131c;border:1px solid #22d3ee55;border-radius:10px;
+      .drk{box-sizing:border-box;padding:12px 14px;background:#11131c;border:1px solid #22d3ee55;border-radius:10px;
         color:#e5e7eb;font:12.5px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,sans-serif;letter-spacing:0;
         font-variant-numeric:tabular-nums;text-transform:none;text-align:left}
-      #drk-panel *{box-sizing:border-box;font-family:inherit;letter-spacing:inherit}
-      #drk-panel.folded{padding:8px 12px;margin-top:8px}
-      #drk-panel .hd{display:flex;align-items:center;gap:8px}
-      #drk-panel .hd .nm{font-size:15px;font-weight:700;color:#f8fafc;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;min-width:0}
-      #drk-panel .hd button{flex:none;background:none;border:1px solid #334155;color:#94a3b8;border-radius:6px;cursor:pointer;font-size:11px;padding:1px 7px}
-      #drk-panel .chips{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}
-      #drk-panel .chip{padding:1px 7px;border-radius:9px;background:#1e2433;font-size:11px;white-space:nowrap;color:#cbd5e1}
-      #drk-panel .chip b{font-weight:700}
-      #drk-panel.folded .bd,#drk-panel.folded .chips{display:none}
-      #drk-panel .sec{margin-top:10px;border-top:1px solid #1f2937;padding-top:6px}
-      #drk-panel .sh{display:flex;align-items:center;justify-content:space-between;cursor:pointer;user-select:none;
+      .drk *{box-sizing:border-box;font-family:inherit;letter-spacing:inherit}
+      .drk.folded{padding:8px 12px;margin-top:8px}
+      .drk .hd{display:flex;align-items:center;gap:8px}
+      .drk .hd .nm{font-size:15px;font-weight:700;color:#f8fafc;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;min-width:0}
+      .drk .hd button{flex:none;background:none;border:1px solid #334155;color:#94a3b8;border-radius:6px;cursor:pointer;font-size:11px;padding:1px 7px}
+      .drk .chips{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}
+      .drk .chip{padding:1px 7px;border-radius:9px;background:#1e2433;font-size:11px;white-space:nowrap;color:#cbd5e1}
+      .drk .chip b{font-weight:700}
+      .drk.folded .bd,.drk.folded .chips{display:none}
+      .drk .sec{margin-top:10px;border-top:1px solid #1f2937;padding-top:6px}
+      .drk .sh{display:flex;align-items:center;justify-content:space-between;cursor:pointer;user-select:none;
         color:#64748b;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.07em}
-      #drk-panel .sh:hover{color:#94a3b8}
-      #drk-panel .sh .ar{font-size:10px}
-      #drk-panel .sb{margin-top:5px}
-      #drk-panel .sec.closed .sb{display:none}
-      #drk-panel .kv{display:flex;justify-content:space-between;align-items:baseline;gap:10px;padding:1px 0}
-      #drk-panel .kv>span:first-child{color:#94a3b8;white-space:nowrap}
-      #drk-panel .kv>span:last-child{text-align:right;white-space:nowrap;min-width:0}
-      #drk-panel .kv.w>span:last-child{white-space:normal}
-      #drk-panel .kv b{font-weight:700}
-      #drk-panel .g{color:#4ade80}#drk-panel .o{color:#fbbf24}#drk-panel .r{color:#f87171}#drk-panel .m{color:#94a3b8}#drk-panel .us{color:#22d3ee}#drk-panel .th{color:#fb923c}
-      #drk-panel .note{color:#64748b;font-size:10.5px;margin-top:4px;line-height:1.35}
-      #drk-panel .wait{color:#94a3b8;font-size:12px;padding:4px 0}
-      #drk-panel .fr{display:inline-flex;gap:3px}
-      #drk-panel .fr i{display:inline-block;width:15px;height:15px;border-radius:3px;font:700 9.5px/15px inherit;font-style:normal;text-align:center;color:#0b0c10}
-      #drk-panel .fr .W{background:#f87171}#drk-panel .fr .L{background:#4ade80}#drk-panel .fr .D{background:#fbbf24}
-      #drk-panel .br{display:grid;grid-template-columns:38px 1fr 38px;align-items:center;gap:6px;margin:3px 0}
-      #drk-panel .br .lb{grid-column:1/4;color:#94a3b8;font-size:11px;margin-bottom:-2px}
-      #drk-panel .br .a{text-align:right;font-weight:700}#drk-panel .br .z{text-align:left;font-weight:700}
-      #drk-panel .br .t{height:8px;border-radius:4px;background:#1f2937;display:flex;overflow:hidden}
-      #drk-panel .br .t i{display:block;height:100%}
-      #drk-panel .lg{display:flex;justify-content:space-between;font-size:11px;font-weight:600;margin-bottom:2px}
-      #drk-panel svg{display:block;width:100%;height:auto;margin-top:6px}
-      #drk-panel table{width:100%;border-collapse:collapse}
-      #drk-panel th{color:#64748b;font-weight:500;font-size:10.5px;text-align:right;padding:0 3px 2px;white-space:nowrap}
-      #drk-panel td{text-align:right;padding:2px 3px;border-top:1px solid #1f2937;white-space:nowrap}
-      #drk-panel th:first-child,#drk-panel td:first-child{text-align:left}`;
+      .drk .sh:hover{color:#94a3b8}
+      .drk .sh .ar{font-size:10px}
+      .drk .sb{margin-top:5px}
+      .drk .sec.closed .sb{display:none}
+      .drk .kv{display:flex;justify-content:space-between;align-items:baseline;gap:10px;padding:1px 0}
+      .drk .kv>span:first-child{color:#94a3b8;white-space:nowrap}
+      .drk .kv>span:last-child{text-align:right;white-space:nowrap;min-width:0}
+      .drk .kv.w>span:last-child{white-space:normal}
+      .drk .kv b{font-weight:700}
+      .drk .g{color:#4ade80}.drk .o{color:#fbbf24}.drk .r{color:#f87171}.drk .m{color:#94a3b8}.drk .us{color:#22d3ee}.drk .th{color:#fb923c}
+      .drk .note{color:#64748b;font-size:10.5px;margin-top:4px;line-height:1.35}
+      .drk .wait{color:#94a3b8;font-size:12px;padding:4px 0}
+      .drk .fr{display:inline-flex;gap:3px}
+      .drk .fr i{display:inline-block;width:15px;height:15px;border-radius:3px;font:700 9.5px/15px inherit;font-style:normal;text-align:center;color:#0b0c10}
+      .drk .fr .W{background:#f87171}.drk .fr .L{background:#4ade80}.drk .fr .D{background:#fbbf24}
+      .drk .br{display:grid;grid-template-columns:38px 1fr 38px;align-items:center;gap:6px;margin:3px 0}
+      .drk .br .lb{grid-column:1/4;color:#94a3b8;font-size:11px;margin-bottom:-2px}
+      .drk .br .a{text-align:right;font-weight:700}.drk .br .z{text-align:left;font-weight:700}
+      .drk .br .t{height:8px;border-radius:4px;background:#1f2937;display:flex;overflow:hidden}
+      .drk .br .t i{display:block;height:100%}
+      .drk .lg{display:flex;justify-content:space-between;font-size:11px;font-weight:600;margin-bottom:2px}
+      .drk svg{display:block;width:100%;height:auto;margin-top:6px}
+      .drk table{width:100%;border-collapse:collapse}
+      .drk th{color:#64748b;font-weight:500;font-size:10.5px;text-align:right;padding:0 3px 2px;white-space:nowrap}
+      .drk td{text-align:right;padding:2px 3px;border-top:1px solid #1f2937;white-space:nowrap}
+      .drk th:first-child,.drk td:first-child{text-align:left}
+      #drk-strip{position:absolute;z-index:5;padding:10px 16px 12px;background:#11131cee;border:1px solid #22d3ee44;border-radius:10px;overflow:hidden;flex-direction:column}
+      #drk-strip .drk-cols{display:grid;grid-template-columns:minmax(220px,1.1fr) minmax(240px,1.3fr) minmax(250px,1fr);gap:22px;flex:1;min-height:0}
+      #drk-strip .drk-cols>div{min-height:0;overflow:hidden}
+      #drk-strip .drk-top{display:flex;align-items:center;gap:12px;margin-bottom:6px;color:#64748b;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.07em}
+      #drk-strip .drk-top .sc{color:#f8fafc;font-size:18px;letter-spacing:0}
+      #drk-strip .drk-top button{margin-left:auto;background:none;border:1px solid #334155;color:#94a3b8;border-radius:6px;cursor:pointer;font-size:10.5px;padding:1px 8px;text-transform:none;letter-spacing:0}
+      #drk-strip .drk-mapc{display:flex;flex-direction:column;min-height:0}
+      #drk-strip .drk-mapc svg{flex:1 1 0;min-height:0;width:100%;height:100%;margin:0}
+      #drk-strip .br{margin:2px 0 4px}
+      .drk .lnk{color:#22d3ee;cursor:pointer;font-size:11px}`;
     const lat = v => v == null ? `<span class="m">—</span>` : `<span class="${v < 300 ? "g" : v < 900 ? "o" : "r"}">${Math.round(v)}</span>`;
     const pct = (a, n) => n ? Math.round(100 * a / n) : 0;
     const teamRow = (name, id) => {
@@ -495,6 +505,8 @@
         <div class="sh"><span>${title}</span><span>${right} <span class="ar">${closed[key] ? "▸" : "▾"}</span></span></div>
         <div class="sb">${body}</div></div>`;
     const flowing = () => !!(lastStatus && lastStatus.lastWall && Date.now() - lastStatus.lastWall < 10000 && lastStatus.n > 40);
+    // 1.38: frames flow from the "Who kicks off?" screen on; the match is on once the game clock runs
+    const started = () => !!(lastStatus && lastStatus.t > 0.5);
     const sides = () => {
       const pmh = PING && PING.match && PING.match.id === mid ? PING.match : null;
       const named = !!(pmh && typeof pmh.home === "boolean");
@@ -506,7 +518,7 @@
     const agoCell = v => v == null ? `<span class="m">—</span>` : `<span class="${v > 20 ? "r" : v > 10 ? "o" : ""}">${v}s</span>`;
     const liveBody = () => {
       const ctl = lastStatus && lastStatus.ctl;
-      if (!flowing() || !ctl) return `<div class="wait">Starts with the match.</div>`;
+      if (!flowing() || !ctl || !started()) return `<div class="wait">Starts with the match.</div>`;
       const { us, them } = sides();
       const tr = LIVE && LIVE.ok && LIVE.pos ? LIVE.pos : null;
       const rows = POSN.map((p, i) => {
@@ -525,27 +537,29 @@
       return `<div class="br"><div class="lb">${label}</div><div class="a us">${f(a)}</div>
         <div class="t"><i style="width:${w}%;background:#22d3ee"></i><i style="width:${100 - w}%;background:#fb923c"></i></div><div class="z th">${f(b)}</div></div>`;
     };
-    // pitch 13 x 7.3 (x ±6.5 goal lines); our shots drawn attacking right, theirs attacking left
+    // pitch 13 x 7.3 (x ±6.5 goal lines); our shots drawn attacking right, theirs attacking left. 1.39: +z is the
+    // top of the pitch (the game's own minimap), and the styles are inline so the page's CSS cannot recolour lines.
     const shotMap = (map, us) => {
-      const W = 260, Hh = 146, sx = x => (x + 6.5) / 13 * W, sz = z => (z + 3.65) / 7.3 * Hh;
+      const W = 260, Hh = 146, sx = x => (x + 6.5) / 13 * W, sz = z => (3.65 - z) / 7.3 * Hh;
+      const L = "fill:none;stroke:#1f5135;stroke-width:1";
       const dots = (map || []).map(m => {
         const mine = m[1] === us, x = mine ? m[3] : -m[3], z = mine ? m[4] : -m[4];
         const r = 3 + Math.round((m[5] || 0) * 10), c = mine ? "#22d3ee" : "#fb923c";
         return `<circle cx="${sx(Math.max(-6.5, Math.min(6.5, x))).toFixed(1)}" cy="${sz(Math.max(-3.65, Math.min(3.65, z))).toFixed(1)}" r="${r}"
-          fill="${m[6] ? c : "none"}" stroke="${c}" stroke-width="1.5" opacity="${m[6] ? 1 : .8}"><title>${Math.round(m[0])}s ${POSN[m[2]] || ""} xG ${m[5]}${m[6] ? " · GOAL" : ""}</title></circle>`;
+          style="fill:${m[6] ? c : "none"};stroke:${c};stroke-width:1.5;opacity:${m[6] ? 1 : .8}"><title>${Math.round(m[0])}s ${POSN[m[2]] || ""} xG ${m[5]}${m[6] ? " · GOAL" : ""}</title></circle>`;
       }).join("");
-      const gh = sz(0.9) - sz(-0.9);
-      return `<svg viewBox="0 0 ${W} ${Hh}" role="img" aria-label="shot map">
-        <rect x=".5" y=".5" width="${W - 1}" height="${Hh - 1}" rx="4" fill="#0f2a1c" stroke="#1f5135"/>
-        <line x1="${W / 2}" y1="0" x2="${W / 2}" y2="${Hh}" stroke="#1f5135"/><circle cx="${W / 2}" cy="${Hh / 2}" r="18" fill="none" stroke="#1f5135"/>
-        <rect x="0" y="${(Hh - 3 * gh) / 2}" width="26" height="${3 * gh}" fill="none" stroke="#1f5135"/>
-        <rect x="${W - 26}" y="${(Hh - 3 * gh) / 2}" width="26" height="${3 * gh}" fill="none" stroke="#1f5135"/>
-        <rect x="0" y="${(Hh - gh) / 2}" width="3" height="${gh}" fill="#fb923c88"/><rect x="${W - 3}" y="${(Hh - gh) / 2}" width="3" height="${gh}" fill="#22d3ee88"/>
+      const gh = Math.abs(sz(0.9) - sz(-0.9));
+      return `<svg viewBox="0 0 ${W} ${Hh}" role="img" aria-label="shot map" style="border:0;outline:0;background:none;box-shadow:none;overflow:hidden">
+        <rect x=".5" y=".5" width="${W - 1}" height="${Hh - 1}" rx="4" style="fill:#0f2a1c;stroke:#1f5135;stroke-width:1"/>
+        <line x1="${W / 2}" y1="0" x2="${W / 2}" y2="${Hh}" style="${L}"/><circle cx="${W / 2}" cy="${Hh / 2}" r="18" style="${L}"/>
+        <rect x="0" y="${(Hh - 3 * gh) / 2}" width="26" height="${3 * gh}" style="${L}"/>
+        <rect x="${W - 26}" y="${(Hh - 3 * gh) / 2}" width="26" height="${3 * gh}" style="${L}"/>
+        <rect x="0" y="${(Hh - gh) / 2}" width="3" height="${gh}" style="fill:#fb923c88;stroke:none"/><rect x="${W - 3}" y="${(Hh - gh) / 2}" width="3" height="${gh}" style="fill:#22d3ee88;stroke:none"/>
         ${dots}</svg>`;
     };
     const statBody = () => {
       const s = lastStatus && lastStatus.st;
-      if (!s || !s.sh || !flowing() && !(s.frames > 40)) return `<div class="wait">Waiting for kick-off…</div>`;
+      if (!s || !s.sh || !started()) return `<div class="wait">Waiting for kick-off…</div>`;
       const { us, them, A, B } = sides();
       const last = (s.last || []).slice(-3).reverse().map(x => `${Math.round(x[0])}s ${x[1] === us ? A : B} ${POSN[x[2]] || x[2]} ${x[3]}m`).join(" · ");
       return `<div class="lg"><span class="us">● ${A}</span><span class="th">${B} ●</span></div>
@@ -571,8 +585,55 @@
       if (!pm || !pm.oppId || (FORM && FORM.oppId === pm.oppId && Date.now() - FORM.at < 5 * 60e3)) return;
       oppFormNow(pm.oppId).then(r => { FORM = r; render(); }).catch(() => {});
     };
+    // 1.38: "This match" and "Agents live" in a wide strip under the game picture, in the empty part of the
+    // viewer's frame (only when there is room and not in full screen). "→ side panel" moves them back.
+    let strip = null, stripOn = false, stripPref = true;
+    try { stripPref = localStorage.getItem("__drk_strip") !== "0"; } catch (e) {}
+    const gameCanvas = () => { let c = null, a = 0; for (const x of document.querySelectorAll("canvas")) { const r = x.getBoundingClientRect(), s2 = r.width * r.height; if (s2 > a) { a = s2; c = x; } } return a > 40000 ? c : null; };
+    const placeStrip = () => {
+      const off = () => { if (strip) strip.style.display = "none"; stripOn = false; };
+      if (!mid || !stripPref || document.fullscreenElement) return off();
+      const c = gameCanvas(); if (!c) return off();
+      const cr = c.getBoundingClientRect();
+      let fr = null, el = c.parentElement;
+      while (el && el !== document.body) { const r = el.getBoundingClientRect(); if (r.height >= cr.height + 180 && r.width >= cr.width * 0.95) { fr = el; break; } el = el.parentElement; }
+      if (!fr) return off();
+      const frr = fr.getBoundingClientRect(), space = frr.bottom - cr.bottom - 20;
+      if (space < 180) return off();
+      if (!strip || !strip.isConnected) {
+        for (const x of document.querySelectorAll("#drk-strip")) x.remove();   // left by a copy from before a reload
+        strip = document.createElement("div"); strip.id = "drk-strip"; strip.className = "drk";
+        strip.addEventListener("click", ev => { if (ev.target.closest("[data-side]")) { stripPref = false; try { localStorage.setItem("__drk_strip", "0"); } catch (e) {} placeStrip(); render(); } });
+        fr.appendChild(strip);
+      }
+      if (getComputedStyle(fr).position === "static") fr.style.position = "relative";
+      Object.assign(strip.style, { display: "flex", top: `${Math.round(cr.bottom - frr.top + 12)}px`, left: "24px", right: "24px",
+        height: `${Math.round(Math.min(space - 8, 320))}px` });
+      stripOn = true;
+    };
+    const stripHtml = () => {
+      const s = lastStatus && lastStatus.st, st = lastStatus;
+      const { us, them, A, B } = sides();
+      const sc = st && st.score ? `${st.score[us]}:${st.score[them]}` : "";
+      const clock = st && st.t ? `${Math.floor(st.t / 60)}:${String(Math.floor(st.t % 60)).padStart(2, "0")}` : "";
+      if (!s || !s.sh || !started()) return `<div class="drk-top">This match <span class="sc">${sc}</span><button data-side title="Show this in the side panel instead">→ side panel</button></div><div class="wait">Waiting for kick-off… The match stats, the shot map and the agents show here once the clock runs.</div>`;
+      const last = (s.last || []).slice(-3).reverse().map(x => `${Math.round(x[0])}s ${x[1] === us ? A : B} ${POSN[x[2]] || x[2]} ${x[3]}m`).join(" · ");
+      return `<div class="drk-top">This match <span class="sc">${sc}</span><span>${clock}</span><span class="us">● ${A}</span><span class="th">● ${B}</span>
+          <button data-side title="Show this in the side panel instead">→ side panel</button></div>
+        <div class="drk-cols">
+          <div>${bar("Shots", s.sh[us], s.sh[them])}
+            ${bar(`<span title="sum over shots of the share of shots from that distance that went in (280 recorded matches)">xG guide</span>`, s.xg[us], s.xg[them], v => (v || 0).toFixed(2))}
+            ${s.pos ? bar("Possession", s.pos[us], s.pos[them], v => v + "%") : ""}
+            ${s.third ? bar(`<span title="share of play time the ball is in this side's attacking third">Ball in attacking third</span>`, s.third[us], s.third[them], v => v + "%") : ""}
+            ${last ? `<div class="note">last: ${E(last)}</div>` : ""}</div>
+          <div class="drk-mapc">${shotMap(s.map, us)}<div class="note">● filled = goal · size = xG · ${A} attack →</div></div>
+          <div>${liveBody()}</div>
+        </div>`;
+    };
     const render = () => {
       if (!box || !alive()) return;
+      placeStrip();
+      if (stripOn) strip.innerHTML = stripHtml();
       layout();
       const pm = PING && PING.match && PING.match.id === mid ? PING.match : null;
       const oppName = (pm && pm.opp) || headerOpp() || "opponent";
@@ -607,20 +668,23 @@
       const plugBody = `<div class="kv w"><span>Recording</span><span>${recLine}</span></div>
           <div class="kv w"><span>Auto-START</span><span>${as}</span></div><div class="kv"><span>Auto-accept</span><span>${aa ? `<span class="g">on</span>` : `<span class="m">off</span>`}</span></div>`;
       const sc = st && st.score ? (() => { const { us } = sides(); return `${st.score[us]}:${st.score[1 - us]}`; })() : "";
-      box.className = folded ? "folded" : "";
+      box.className = "drk" + (folded ? " folded" : "");
       box.innerHTML = `<div class="hd"><span class="nm" title="${E(oppName)}">${E(oppName)}</span>${folded && sc ? `<b>${sc}</b>` : ""}
           <button data-fold title="${folded ? "Show the panel" : "Fold, show the Coach Live Feed"}">${folded ? "▸" : "▾"}</button></div>
         <div class="chips">${chips}</div>
         <div class="bd">
           ${sec("opp", "Opponent", oppBody)}
-          ${sec("live", "This match", statBody(), st && st.score ? `<b style="color:#e5e7eb;font-size:12px">${sc}</b>` : "")}
+          ${stripOn ? `<div class="sec"><div class="note">This match and the agents: <b>under the game</b> ↙</div></div>`
+            : `${sec("live", "This match", statBody(), st && st.score ? `<b style="color:#e5e7eb;font-size:12px">${sc}</b>` : "")}
           ${sec("agents", "Agents live", liveBody())}
+          ${!stripPref ? `<div class="note"><span class="lnk" data-under>↙ show under the game</span></div>` : ""}`}
           ${sec("ping", "Our agents' ping, ms", pingBody)}
           ${sec("plugin", "Plugin", plugBody)}
         </div>`;
     };
     // clicks: fold the panel, open / close a section (remembered)
     const onPanelClick = ev => {
+      if (ev.target.closest("[data-under]")) { stripPref = true; try { localStorage.setItem("__drk_strip", "1"); } catch (e) {} render(); return; }
       if (ev.target.closest("[data-fold]")) {
         folded = !folded;
         try { localStorage.setItem("__drk_panel_folded", folded ? "1" : "0"); } catch (e) {}
@@ -660,7 +724,8 @@
     const unmount = () => {
       if (host) for (const ch of host.children) if (ch !== box && ch.dataset.drkDisplay !== undefined) ch.style.display = ch.dataset.drkDisplay;
       if (box) box.remove();
-      box = null; host = null;
+      if (strip) strip.remove();
+      box = null; host = null; strip = null; stripOn = false;
     };
     const mount = () => {
       if (!alive()) { unmount(); return; }
