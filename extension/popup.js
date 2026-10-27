@@ -225,15 +225,19 @@ function renderForm(h) {
   if (byVer.length >= 5) {
     for (const m of byVer) { let g = groups.find(x => x.k === m.version); if (!g) groups.push(g = { k: m.version, list: [] }); g.list.push(m); }
   } else {
-    for (let i = 0; i < Math.min(all.length, 40); i += 10) groups.push({ k: i ? `${i + 1}–${i + 10} back` : "last 10", list: all.slice(i, i + 10) });
+    for (let i = 0; i < Math.min(all.length, 40); i += 10) groups.push({ k: i ? `${i + 1}–${i + 10}` : "last 10", list: all.slice(i, i + 10) });
   }
   const rows = groups.slice(0, 5).map(g => ({ k: g.k, ...formRows(g.list) }));
+  // 1.35: fixed columns; a row is compared with the next row that has 3+ matches, and rows with fewer
+  // than 3 matches are greyed and not coloured (1 match says nothing)
+  const MIN = 3;
   const cls = (a, b, hi = true) => b == null ? "" : (hi ? a > b : a < b) ? "ok" : (hi ? a < b : a > b) ? "bad" : "";
-  el.innerHTML = `<table class="ping"><tr><th></th><th>n</th><th>W-D-L</th><th>win</th><th title="goals per match, for : against">goals</th></tr>${rows.map((r, i) => {
-    const p = rows[i + 1];
-    return `<tr><td>${esc(r.k)}</td><td>${r.n}</td><td>${r.w}-${r.d}-${r.l}</td><td class="${cls(r.wr, p && p.wr)}">${r.wr}%</td>
-      <td><span class="${cls(r.gf, p && p.gf)}">${r.gf.toFixed(1)}</span>:<span class="${cls(r.ga, p && p.ga, false)}">${r.ga.toFixed(1)}</span></td></tr>`; }).join("")}</table>
-    <div class="meta">${byVer.length >= 5 ? "per agent version, newest first" : "blocks of 10 matches, newest first"} · green / red = better / worse than the row below</div>`;
+  el.innerHTML = `<table class="form"><colgroup><col style="width:26%"><col style="width:10%"><col style="width:22%"><col style="width:16%"><col style="width:26%"></colgroup>
+    <tr><th>version</th><th>n</th><th>W-D-L</th><th>win</th><th title="goals per match, for : against">goals</th></tr>${rows.map((r, i) => {
+    const p = r.n >= MIN ? rows.slice(i + 1).find(x => x.n >= MIN) : null;
+    return `<tr class="${r.n < MIN ? "few" : ""}"><td>${esc(r.k)}</td><td>${r.n}</td><td>${r.w}-${r.d}-${r.l}</td><td class="${cls(r.wr, p && p.wr)}">${r.wr}%</td>
+      <td><span class="${cls(r.gf, p && p.gf)}">${r.gf.toFixed(1)}</span><span class="muted"> : </span><span class="${cls(r.ga, p && p.ga, false)}">${r.ga.toFixed(1)}</span></td></tr>`; }).join("")}</table>
+    <div class="meta">${byVer.length >= 5 ? "per agent version" : "blocks of 10 matches"}, newest first · green / red = better / worse than the next row with ${MIN}+ matches · grey = under ${MIN} matches</div>`;
 }
 chrome.runtime.sendMessage({ type: "popup-h2h" }).then(renderForm).catch(() => renderForm(null));
 

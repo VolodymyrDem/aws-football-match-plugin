@@ -90,6 +90,12 @@
   nav.tabs button.on { background: var(--bg); color: var(--fg); box-shadow: 0 1px 2px rgba(0,0,0,.15); }
   nav.tabs button .n { display: inline-block; min-width: 15px; margin-left: 4px; padding: 0 4px; border-radius: 8px; background: var(--red); color: #fff; font-size: 10px; }
   section[hidden] { display: none; }
+  table.form { width: 100%; margin: 0 0 6px; table-layout: fixed; font-variant-numeric: tabular-nums; }
+  table.form th { font-size: 10px; font-weight: 500; color: var(--muted); padding: 0 6px 4px; text-align: right; }
+  table.form td { padding: 5px 6px; border-top: 1px solid var(--line); font-size: 12px; text-align: right; white-space: nowrap; }
+  table.form th:first-child, table.form td:first-child { text-align: left; }
+  table.form th:nth-child(3), table.form td:nth-child(3) { text-align: center; }
+  table.form tr.few td { color: var(--muted); }
   .card.switches { padding: 2px 0 12px; }
   .card.switches .switch { margin: 10px 12px 0; }
   .bars { display: grid; gap: 7px; margin-top: 8px; }
