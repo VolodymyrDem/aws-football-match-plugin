@@ -605,3 +605,11 @@ chrome.runtime.onInstalled.addListener(async () => {
     for (const t of tabs) chrome.scripting.executeScript({ target: { tabId: t.id }, files: ["bridge.js"] }).catch(() => {});
   } catch (e) {}
 });
+
+// ---- Our agents' live call cadence (1.27): the match panel asks every 15 s; the native helper reads
+// the last minute of TRACE from CloudWatch (scripts/live_trace.py). No helper (team build): "missing".
+chrome.runtime.onMessage.addListener((msg, sender, reply) => {
+  if (!msg || msg.type !== "live-trace" || !sender.tab || !msg.matchId) return;
+  nativeCall({ cmd: "live_trace", match: msg.matchId }).then(reply);
+  return true;
+});

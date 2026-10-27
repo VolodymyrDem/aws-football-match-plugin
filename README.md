@@ -5,7 +5,7 @@
 **Scout every opponent, never lose a match recording, and never miss a challenge in the Agentic Football Cup.**
 
 ![Chrome](https://img.shields.io/badge/Chrome-extension-4285F4?logo=googlechrome&logoColor=white)
-![Version](https://img.shields.io/badge/version-1.26-22d3ee)
+![Version](https://img.shields.io/badge/version-1.27-22d3ee)
 ![Manifest](https://img.shields.io/badge/Manifest-V3-6e56cf)
 ![Install](https://img.shields.io/badge/install-one%20command-4ade80)
 ![Privacy](https://img.shields.io/badge/data-stays%20on%20your%20Mac-94a3b8)
@@ -84,7 +84,9 @@ Works while you type in the search box too.
 
 During a match the viewer's right column shows the opponent's **place**, **win rate overall** and
 **against you**, **your record and goals**, the **last match**, **ping per position** for both teams and
-what the plugin is doing (recording, Auto-START, Auto-accept). Press **▾** to fold it into a strip and
+what the plugin is doing (recording, Auto-START, Auto-accept). An **agents live** table shows, per position, how
+much of the last 30 s each player spent on an agent command, for both teams, and how long your player has been
+without one: a silent or slow agent shows at once. Press **▾** to fold it into a strip and
 see the Coach Live Feed again. It appears whether you started the match yourself or accepted a challenge.
 
 ---

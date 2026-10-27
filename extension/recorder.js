@@ -165,6 +165,7 @@
           b[2] ? 1 : 0, b[3] == null ? -1 : R(b[3]), R(b[6])];
         for (const pl of g[6] || []) row.push(pl[0], pl[1], R(pl[2][0]), R(pl[2][1]), code(String(pl[8])));
         rows.push(row);
+        ctlAdd(g);
         if (rows.length % 200 === 0) persist();        // ~5 s of play, even in a throttled tab
         if (rows.length % 80 === 0) postStatus();
       } catch (e) { g = null; /* not a game-state frame */ }
@@ -278,6 +279,34 @@
   };
   setInterval(persist, 5000);
 
+  // ---- Agent control (1.27): a player whose action is Coach* (CoachMoveTo, CoachShoot...) is
+  // carrying out an agent's command; anything else (CoverZone, ChaseBall...) is the game's own AI
+  // filling in. Per player of both teams: the share of the last 30 s under an agent command, and
+  // for how long the player has been without one (0 while a command runs; an agent repeating the
+  // same command shows as one long Coach* action, so "new command" times are not visible).
+  const CTL_WIN = 30;
+  let ctl = {};
+  const ctlAdd = g => {
+    const sec = Math.floor(Date.now() / 1000);
+    for (const pl of g[6] || []) {
+      const k = pl[1] + ":" + pl[0], a = String(pl[8]), on = a.startsWith("Coach");
+      const c = ctl[k] || (ctl[k] = { b: [], last: null });
+      let b = c.b[c.b.length - 1];
+      if (!b || b[0] !== sec) { b = [sec, 0, 0]; c.b.push(b); if (c.b.length > CTL_WIN + 1) c.b.shift(); }
+      b[2]++; if (on) b[1]++;
+      if (on) c.last = Date.now();
+    }
+  };
+  const ctlNow = () => {
+    const out = {}, now = Math.floor(Date.now() / 1000);
+    for (const k in ctl) {
+      let on = 0, all = 0;
+      for (const [sec, n, t] of ctl[k].b) if (now - sec < CTL_WIN) { on += n; all += t; }
+      out[k] = [all ? Math.round(100 * on / all) : null, ctl[k].last ? Math.round((Date.now() - ctl[k].last) / 1000) : null];
+    }
+    return out;
+  };
+
   // Live status for the extension's popup (bridge.js passes it on): what is recorded so far.
   function postStatus() {
     if (!matchId) return;
@@ -285,7 +314,7 @@
     window.postMessage({
       source: "drunkards-rec", type: "status", id: matchId, n: rows.length, t: lastTime(),
       t0: first ? first[2] : null, score: last ? [last[4], last[5]] : null, lastWall: last ? last[0] : null,
-      header: (meta.header || "").slice(0, 300), reloads: meta.reloads || 0, stopped
+      header: (meta.header || "").slice(0, 300), reloads: meta.reloads || 0, stopped, ctl: ctlNow()
     }, location.origin);
   }
   setInterval(postStatus, 2000);
@@ -400,7 +429,7 @@
       const id = m ? m[1] : "unknown-" + Date.now();
       if (id !== matchId) {
         matchId = id; rows = []; comm = []; seen.clear(); acts = []; actIdx = {}; stopped = false;
-        fresh();
+        fresh(); ctl = {};
         restore(id);
       }
       ws.addEventListener("open", () => {

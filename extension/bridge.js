@@ -315,7 +315,7 @@
         const side = k => m[(home ? "home_" : "away_") + k], opp = k => m[(home ? "away_" : "home_") + k];
         const per = st => st ? Object.keys(st).sort().map(k => (st[k] || {}).latency_avg_ms ?? null) : null;
         out.match = { id: matchId, status: m.status, opp: home ? m.away_team_name : m.home_team_name,
-                      oppId: home ? m.away_team_id : m.home_team_id, usId: id,
+                      oppId: home ? m.away_team_id : m.home_team_id, usId: id, home,
                       us: per(side("agent_stats")), them: per(opp("agent_stats")),
                       usAvg: side("avg_latency_ms") ?? null, themAvg: opp("avg_latency_ms") ?? null };
       }
@@ -374,7 +374,7 @@
     const POSN = ["GK", "DEF", "MID", "FWD1", "FWD2"];
     const E = x => String(x ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
     const nn = n => String(n || "").replace(/\s*\((\u043b\u044e\u0434\u0438\u043d\u0430|human)\)/i, "").trim().toLowerCase();
-    let H = null, PING = null, folded = false, host = null, box = null;
+    let H = null, PING = null, LIVE = null, folded = false, host = null, box = null;
     try { folded = localStorage.getItem("__drk_panel_folded") === "1"; } catch (e) {}
     const css = `
       #drk-panel{box-sizing:border-box;padding:14px 16px;background:#14151f;border:2px solid #22d3ee;border-radius:6px;
@@ -405,6 +405,30 @@
       if (!m) return null;
       const us = (H && H.lb && H.lb.us && H.lb.us.name) || "The Drunkards";
       return nn(m[1].replace(/^.*Back to matches\s*/i, "")) === nn(us) ? m[2].replace(/\s*LIVE$/, "").trim() : m[1].replace(/^.*Back to matches\s*/i, "").trim();
+    };
+    // 1.27: agents live. "ctl" = share of the last 30 s each player spent on an agent command (from
+    // the game stream, both teams; recorder.js); calls / longest pause / last call of our agents from
+    // TRACE in CloudWatch (native helper, every 15 s; not in the team build).
+    const pctCell = v => v == null ? `<span class="m">—</span>` : `${v}%`;
+    const agoCell = v => v == null ? `<span class="m">—</span>` : `<span class="${v > 20 ? "r" : v > 10 ? "o" : ""}">${v}s</span>`;
+    const liveSec = () => {
+      const ctl = lastStatus && lastStatus.ctl;
+      const pmh = PING && PING.match && PING.match.id === mid ? PING.match : null;
+      if (!ctl || !pmh || typeof pmh.home !== "boolean") return "";
+      const us = pmh.home ? 0 : 1, them = 1 - us;
+      const tr = LIVE && LIVE.ok && LIVE.pos ? LIVE.pos : null;
+      const rows = POSN.map((p, i) => {
+        const a = ctl[us + ":" + i] || [], b = ctl[them + ":" + i] || [], t = tr && tr[p];
+        const calls = t ? `<span class="${t.calls < 5 ? "r" : t.calls < 15 ? "o" : ""}">${t.calls}</span>` : `<span class="m">—</span>`;
+        const gap = t && t.maxgap != null ? `<span class="${t.maxgap > 10 ? "r" : t.maxgap > 5 ? "o" : ""}">${t.maxgap}s</span>` : `<span class="m">—</span>`;
+        // the keeper's rules hand most moments to the game's own AI, so a long "last" is normal there
+        return `<tr><td>${p}</td><td>${pctCell(a[0])}</td><td>${i === 0 && a[1] != null ? `${a[1]}s` : agoCell(a[1])}</td><td>${pctCell(b[0])}</td>${tr ? `<td>${calls}</td><td>${gap}</td>` : ""}</tr>`;
+      }).join("");
+      const note = tr ? `calls/min and longest pause: our agents in CloudWatch (TRACE), last 60 s`
+        : LIVE && LIVE.missing ? "" : LIVE && LIVE.error ? `TRACE: ${E(LIVE.error).slice(0, 80)}` : "";
+      return `<div class="sec"><div class="lbl">agents live</div>
+        <table><tr><th></th><th title="share of the last 30 s our player spent on an agent command">ctl</th><th title="seconds our player has been without an agent command (0 = under one now)">off</th><th title="share of the last 30 s their player spent on an agent command">them</th>${tr ? `<th title="our agent's calls in the last 60 s (TRACE)">calls</th><th title="longest pause between our agent's calls, last 60 s">pause</th>` : ""}</tr>${rows}</table>
+        <div class="m" style="font-size:11px;margin-top:4px">ctl / them = time under an agent command, last 30 s; off = seconds without one now (game stream)${note ? " · " + note : ""}</div></div>`;
     };
     const render = () => {
       if (!box || !alive()) return;
@@ -442,6 +466,7 @@
           <div class="sec"><div class="lbl">our agents' ping, ms</div>
             <table><tr><th></th>${hasMatch ? "<th>match</th><th>them</th>" : ""}<th title="average latency of our agents, portal figures">avg</th><th title="1 call in 100 is slower than this">p99</th></tr>${rows}</table>
             <div class="m" style="font-size:11px;margin-top:4px">avg / p99: portal, recent hours${obsAt ? ` (${obsAt})` : ""}${!hasMatch && pm && pm.status !== "completed" ? " · this match's figures come after full time" : ""}</div></div>
+          ${liveSec()}
           <div class="sec"><div class="lbl">plugin</div><div>${recLine}</div>
             <div>Auto-START: ${as}</div><div>Auto-accept: ${aa ? `<span class="g">on</span>` : `<span class="m">off</span>`}</div></div>
         </div>`;
@@ -484,7 +509,7 @@
     const mount = () => {
       if (!alive()) { unmount(); return; }
       const m = viewerMid();
-      if (m !== mid) { unmount(); mid = m; PING = null; if (m) { loadH(); loadPing(); } }
+      if (m !== mid) { unmount(); mid = m; PING = null; LIVE = null; if (m) { loadH(); loadPing(); } }
       if (!m) return;
       if (box && box.isConnected) return;
       const card = findCard();
@@ -505,12 +530,19 @@
     };
     const loadH = () => { try { chrome.runtime.sendMessage({ type: "panel-h2h" }, r => { if (r && r.ok) { H = r; render(); } }); } catch (e) {} };
     const loadPing = () => { if (mid) pingNow(mid).then(r => { if (r && r.ok) { PING = r; render(); } }).catch(() => {}); };
+    const loadLive = () => {
+      if (!mid || !alive() || document.visibilityState !== "visible") return;
+      if (lastStatus && lastStatus.lastWall && Date.now() - lastStatus.lastWall > 60000) return;   // match over
+      try { chrome.runtime.sendMessage({ type: "live-trace", matchId: mid }, r => { if (!chrome.runtime.lastError && r) { LIVE = r; render(); } }); } catch (e) {}
+    };
     {   // bridge.js runs only on the portal (manifest), on every page of it
       setInterval(mount, 1500);
       setInterval(() => { if (mid) render(); }, 2000);
       setTimeout(() => { if (mid) { loadH(); loadPing(); } }, 1500);
       setInterval(() => { if (mid) loadH(); }, 60000);
       setInterval(loadPing, 30000);
+      setInterval(loadLive, 15000);
+      setTimeout(loadLive, 3000);
     }
   }
 
