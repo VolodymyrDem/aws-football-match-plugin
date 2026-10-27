@@ -259,7 +259,8 @@ async function renderInvites() {
   el.innerHTML = items.map(x => {
     const left = x.expires ? Math.max(0, Math.round((Date.parse(x.expires) - Date.now()) / 1000)) : null;
     const muted = !inviteSound || invMuted.includes(x.matchId);
-    return `<div class="inv"><div><div class="who">Challenge from ${esc(x.from)}</div><div class="opp">${oppLine(x.from, x.fromId)}</div>
+    const grp = H2H && H2H.group && H2H.group.teams.includes(normName(x.from)) ? H2H.group.name : null;
+    return `<div class="inv"><div><div class="who">Challenge from ${esc(x.from)}${grp ? ` <span class="grp">⚑ Group ${esc(grp)}</span>` : ""}</div><div class="opp">${oppLine(x.from, x.fromId)}</div>
       <div class="left">${left !== null ? `${left} s left` : ""}${muted ? " · 🔇 silent" : ""}</div></div>
       <div style="display:flex;gap:6px">${muted ? "" : `<button data-silence="${esc(x.matchId)}" title="Stop the chime for this challenge (new ones still ring)">🔇</button>`}
       <button data-accept="${esc(x.matchId)}" title="Accept the match and open the viewer">Accept</button></div></div>`;

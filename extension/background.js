@@ -490,6 +490,7 @@ async function storeInvites(res) {
   if (!res.ok) return;
   const { invSeen = [] } = await chrome.storage.session.get("invSeen");
   const auto = await autoAcceptActive();
+  const grp = res.items.some(it => !invSeen.includes(it.matchId)) ? await myGroup().catch(() => null) : null;
   for (const it of res.items) {
     if (invSeen.includes(it.matchId)) continue;
     invSeen.push(it.matchId);
@@ -504,7 +505,7 @@ async function storeInvites(res) {
     try {
       chrome.notifications.create("inv:" + it.matchId, {
         type: "basic", iconUrl: "icons/icon128.png", priority: 2, requireInteraction: true,
-        title: `Challenge from ${it.from}`, message: `Accept the match?${until}\nThe viewer opens after you accept.`,
+        title: `Challenge from ${it.from}${inGroup(grp, it.from) ? ` · ⚑ Group ${grp.name}` : ""}`, message: `${inGroup(grp, it.from) ? "Group match: it counts for the table. " : ""}Accept the match?${until}\nThe viewer opens after you accept.`,
         buttons: [{ title: "Accept" }, { title: "Silence" }] });
     } catch (e) {}
   }
@@ -710,6 +711,18 @@ async function keepTableAndResults(d) {
   }
   await chrome.storage.local.set({ lb: { at: Date.now(), total: d.total_teams, us, teams: lb }, h2hPortal });
 }
+// 1.36: our tournament group, from the local helper (native/group.json) — own build only; the team
+// build has no helper, so nobody else gets the mark. {name, teams: [lower-case names]} or null.
+async function myGroup() {
+  let { groupInfo } = await chrome.storage.local.get("groupInfo");
+  if (!groupInfo || Date.now() - groupInfo.at > 10 * 60e3) {
+    const r = await nativeCall({ cmd: "group" });
+    groupInfo = { at: Date.now(), g: r && r.ok && Array.isArray(r.teams) ? { name: r.name, teams: r.teams.map(t => String(t).trim().toLowerCase()) } : null };
+    if (!(r && r.missing && groupInfo.g === null && HAS_NATIVE)) await chrome.storage.local.set({ groupInfo });
+  }
+  return groupInfo.g;
+}
+const inGroup = (g, name) => !!(g && g.teams.includes(String(name || "").replace(/\s*\((людина|human)\)/i, "").trim().toLowerCase()));
 async function h2hData() {
     let { h2hLocal } = await chrome.storage.local.get("h2hLocal");
     if (!h2hLocal || Date.now() - h2hLocal.at > 10 * 60e3) {
@@ -720,7 +733,7 @@ async function h2hData() {
     const all = { ...Object.fromEntries(((h2hLocal && h2hLocal.matches) || []).map(m => [m.id, { opp: m.opp, us: m.us, them: m.them, at: m.date, version: m.version }])) };
     for (const [id, m] of Object.entries(h2hPortal)) all[id] = { ...(all[id] || {}), ...m };
     const { autoAccept = null, autoStart = false } = await chrome.storage.local.get(["autoAccept", "autoStart"]);
-    return { ok: true, lb, matches: all, local: !!h2hLocal, autoStart, autoAccept };
+    return { ok: true, lb, matches: all, local: !!h2hLocal, autoStart, autoAccept, group: await myGroup() };
 }
 // read-only data: the popup and (1.16) the match panel on the viewer page ask for it
 chrome.runtime.onMessage.addListener((msg, sender, reply) => {

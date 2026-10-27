@@ -582,7 +582,9 @@
       const w = ms.filter(m => m.us > m.them).length, l = ms.filter(m => m.us < m.them).length, d = ms.length - w - l;
       const gf = ms.reduce((a, m) => a + m.us, 0), ga = ms.reduce((a, m) => a + m.them, 0), last = ms[ms.length - 1];
       const wr = ot ? pct(ot.w, ot.p) : null, vs = ms.length ? pct(l, ms.length) : null;
-      const chips = [ot ? `<span class="chip">#<b>${ot.rank}</b> of ${H.lb.total || H.lb.teams.length}</span>` : "",
+      const grp = H && H.group && H.group.teams.includes(nn(oppName)) ? H.group.name : null;   // 1.36: own build only
+      const chips = [grp ? `<span class="chip" style="background:#7c3aed;color:#fff" title="in our group: this match counts for the table">⚑ <b>Group ${E(grp)}</b></span>` : "",
+        ot ? `<span class="chip">#<b>${ot.rank}</b> of ${H.lb.total || H.lb.teams.length}</span>` : "",
         wr != null ? `<span class="chip">WR <b class="${wr >= 60 ? "r" : wr >= 45 ? "o" : "g"}">${wr}%</b></span>` : "",
         vs != null ? `<span class="chip">vs us <b class="${vs >= 50 ? "r" : vs >= 25 ? "o" : "g"}">${vs}%</b></span>` : (H ? `<span class="chip">never played us</span>` : "")].join("");
       const oppBody = `<div class="kv"><span>Win rate</span><span>${ot ? `<b class="${wr >= 60 ? "r" : wr >= 45 ? "o" : "g"}">${wr}%</b> <span class="m">· ${ot.w}-${ot.d}-${ot.l}</span>` : `<span class="m">${H ? "not in the table" : "…"}</span>`}</span></div>
@@ -707,11 +709,13 @@
   {
     let HB = null, hbAt = 0;
     const nb = n => String(n || "").replace(/\s*\((\u043b\u044e\u0434\u0438\u043d\u0430|human)\)/i, "").trim().toLowerCase();
+    const E2 = x => String(x ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
     const loadHB = () => { try { chrome.runtime.sendMessage({ type: "panel-h2h" }, r => { if (r && r.ok) { HB = r; hbAt = Date.now(); } }); } catch (e) {} };
     const css2 = `
       .drk-badge{margin-left:12px;font:12px ui-monospace,SFMono-Regular,Menlo,monospace;color:#94a3b8;white-space:nowrap}
       .drk-badge b{font-weight:700}.drk-badge .g{color:#4ade80}.drk-badge .o{color:#fbbf24}.drk-badge .r{color:#f87171}
-      .drk-badge .rk{color:#22d3ee;font-weight:700}`;
+      .drk-badge .rk{color:#22d3ee;font-weight:700}
+      .drk-badge .grp{padding:1px 6px;border-radius:4px;background:#7c3aed;color:#fff;font-weight:700}`;
     // 1.25: overall win rate, their record against us and, in brackets, how often they beat us
     // ("#24 · 43% · vs us 3-0-3 (50%)"); goals and the last result go into the tooltip.
     const badge = name => {
@@ -719,8 +723,10 @@
       const t = HB.lb && (HB.lb.teams || []).find(x => nb(x.name) === key);
       const ms = Object.values(HB.matches || {}).filter(m => nb(m.opp) === key)
         .sort((a, b) => String(a.at).localeCompare(String(b.at)));
-      if (!t && !ms.length) return null;
+      const g = HB.group && HB.group.teams.includes(key) ? HB.group.name : null;   // 1.36: our group (own build only)
+      if (!t && !ms.length && !g) return null;
       const parts = [], tip = [name];
+      if (g) { parts.push(`<span class="grp">⚑ GROUP ${E2(g)}</span>`); tip.push(`in our group ${g}: this match counts for the table`); }
       if (t) {
         const wr = t.p ? Math.round(100 * t.w / t.p) : 0;
         parts.push(`<span class="rk">#${t.rank}</span>`, `<b class="${wr >= 60 ? "r" : wr >= 45 ? "o" : "g"}">${wr}%</b>`);
@@ -757,6 +763,7 @@
       }
       const names = new Set(((HB.lb && HB.lb.teams) || []).map(t => nb(t.name)));
       for (const m of Object.values(HB.matches || {})) names.add(nb(m.opp));
+      for (const g of (HB.group && HB.group.teams) || []) names.add(g);
       const w = document.createTreeWalker(dlg, NodeFilter.SHOW_TEXT);
       const hits = [];
       let n;
