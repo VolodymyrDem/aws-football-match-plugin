@@ -1,0 +1,607 @@
+// Writes recordings to Downloads/agentic-football-matches/match-<id>.json.gz and the
+// portal's report text to report-<id>.txt, and a screenshot of the report page (final
+// score with both team names, for the tournament result) to final-<id>.png, and the
+// portal's data (our team, the whole table, our matches) to portal.json for the emulator site.
+// It also keeps what the popup shows (popup.html): the live status of each tab
+// (chrome.storage.session) and, per match, which files were saved (chrome.storage.local).
+// gzip first: a raw match is ~3 MB of JSON and Chrome rejects data URLs past ~2 MB.
+// If Chrome asks where to save each file, turn off chrome://settings/downloads →
+// "Ask where to save each file before downloading": an extension cannot skip that dialog.
+const FOLDER = "agentic-football-matches";
+
+function bytesToB64(bytes) {
+  let bin = "";
+  for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+  return btoa(bin);
+}
+
+async function gzipBase64(text) {
+  const stream = new Blob([text]).stream().pipeThrough(new CompressionStream("gzip"));
+  return bytesToB64(new Uint8Array(await new Response(stream).arrayBuffer()));
+}
+
+async function gunzipB64(b64) {
+  const bin = atob(b64);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream("gzip"));
+  return await new Response(stream).text();
+}
+
+// Chrome may refuse very long data URLs: past this size the sampled whole frames are
+// dropped (the frames around goals and shots stay), then everything v4 added if still too big.
+const MAX_B64 = 1.8e6;
+async function fit(b64, data) {
+  if (b64.length <= MAX_B64) return b64;
+  try {
+    const j = JSON.parse(data || await gunzipB64(b64));
+    j.full = (j.full || []).filter(f => f[1] !== 0);   // keep the goal and shot windows
+    j.trimmed = 1;
+    let out = await gzipBase64(JSON.stringify(j));
+    if (out.length <= MAX_B64) return out;
+    delete j.full; delete j.other; delete j.sent;
+    j.trimmed = 2;
+    return await gzipBase64(JSON.stringify(j));
+  } catch (e) { return b64; }
+}
+
+function badge(tabId, text, color) {
+  if (tabId === undefined) return;
+  chrome.action.setBadgeText({ tabId, text });
+  chrome.action.setBadgeBackgroundColor({ tabId, color });
+}
+
+const RED = "#c62828", GREEN = "#2e7d32", ORANGE = "#ef6c00", GREY = "#9e9e9e";
+const safe = id => String(id).replace(/[^0-9a-zA-Z-]/g, "");
+
+// ---- match history: {id: {id, first, last, home, away, score, t, t0, n, reloads,
+//      rec: {at, n, dl, trimmed?}, report: {at, dl}, shot: {at, dl}, err: [...]}}
+let chain = Promise.resolve();
+function updateHist(id, fn) {
+  chain = chain.then(async () => {
+    const { hist = {} } = await chrome.storage.local.get("hist");
+    const h = hist[id] || (hist[id] = { id, first: Date.now() });
+    fn(h);
+    h.last = Date.now();
+    const ids = Object.keys(hist).sort((a, b) => hist[b].first - hist[a].first);
+    for (const old of ids.slice(80)) delete hist[old];   // keep the newest 80
+    await chrome.storage.local.set({ hist });
+  }).catch(() => {});
+  return chain;
+}
+
+// "Home\n2 — 1\nAway" in the viewer header or the report text.
+function parseTeams(text) {
+  const L = String(text || "").split("\n").map(x => x.trim()).filter(Boolean);
+  for (let i = 1; i < L.length - 1; i++) {
+    const m = L[i].match(/^(\d+)\s*[—–-]\s*(\d+)$/);
+    if (m) return { home: L[i - 1], away: L[i + 1], score: [+m[1], +m[2]] };
+  }
+  return null;
+}
+
+// ---- macOS notifications: end of a match (what was saved) and problems while recording.
+const SITE = "https://agentic-football.aws.dev";
+const title = h => h.home && h.away ? `${h.home} ${h.score ? h.score.join("—") : ""} ${h.away}` : `Матч ${h.id.slice(0, 8)}`;
+const missing = h => [!h.rec && "запису", !h.report && "звіту", !(h.shot || h.manualShot) && "скріншоту"].filter(Boolean);
+function notify(id, key, t, message) {
+  try {
+    chrome.notifications.create(`${key}:${id}`, { type: "basic", iconUrl: "icons/icon128.png", title: t, message, priority: 1 });
+  } catch (e) {}
+}
+const ending = new Set();   // two saves landing together must not notify twice
+async function endCheck(id, final) {
+  if (ending.has(id)) return;
+  ending.add(id);
+  try {
+    const { hist = {} } = await chrome.storage.local.get("hist");
+    const h = hist[id];
+    if (!h || h.notifiedEnd) return;
+    const miss = missing(h);
+    if (miss.length && !final) return;   // the alarm comes back for it
+    await updateHist(id, x => { x.notifiedEnd = Date.now(); });
+    sendEnd(id, h, miss);
+  } finally { ending.delete(id); }
+}
+function sendEnd(id, h, miss) {
+  chrome.alarms.clear("check:" + id);
+  if (miss.length) notify(id, "end", `⚠ ${title(h)}`, `Бракує ${miss.join(", ")}. Клікни — відкриється звіт, і файли дозбережуться.`);
+  else notify(id, "end", title(h), "Збережено: запис ✓ · звіт ✓ · скріншот ✓" +
+    (h.report && h.report.full === false ? " (звіт поки без AI-огляду — дозбережеться)" : ""));
+}
+chrome.alarms.onAlarm.addListener(a => { if (a.name.startsWith("check:")) endCheck(a.name.slice(6), true); });
+chrome.notifications.onClicked.addListener(nid => {
+  if (nid.startsWith("inv:")) return;   // challenge notifications: handled below
+  const id = nid.split(":")[1];
+  if (id && /^[0-9a-f-]{36}$/.test(id)) chrome.tabs.create({ url: `${SITE}/matches/${id}/report` });
+  chrome.notifications.clear(nid);
+});
+
+function download(url, filename, tabId, okBadge, reply, onDone) {
+  chrome.downloads.download({ url, filename, conflictAction: "overwrite", saveAs: false }, id => {
+    const ok = !chrome.runtime.lastError && id !== undefined;
+    if (okBadge) badge(tabId, ok ? okBadge : "ERR", ok ? GREEN : RED);
+    if (onDone) onDone(ok, id);
+    if (reply) reply({ ok });
+  });
+}
+
+chrome.runtime.onMessage.addListener((msg, sender, reply) => {
+  const tabId = sender.tab ? sender.tab.id : undefined;
+  if (!msg) return;
+  if (msg.type === "recording") {
+    badge(tabId, "REC", RED);   // recording this match
+    return;
+  }
+  if (msg.type === "status" && msg.id && tabId !== undefined) {
+    const st = { ...msg, url: sender.tab.url, ts: Date.now() };
+    chrome.storage.session.set({ ["tab:" + tabId]: st }).catch(() => {});
+    updateHist(msg.id, h => {
+      const tm = parseTeams(msg.header);
+      if (tm && !h.report) Object.assign(h, tm);
+      if (msg.score && !h.report) h.score = msg.score;
+      Object.assign(h, { t: msg.t, t0: msg.t0, n: msg.n, reloads: msg.reloads });
+    }).then(async () => {
+      const { hist = {} } = await chrome.storage.local.get("hist");
+      const h = hist[msg.id];
+      if (h && h.rec) return;                          // saved: keep OK / REP
+      const late = msg.t0 !== null && msg.t0 > 3;      // started after kick-off
+      const stale = msg.lastWall && Date.now() - msg.lastWall > 8000 && msg.t < 118;
+      if (h && late && msg.n > 0 && !h.notifiedLate) {
+        updateHist(msg.id, x => { x.notifiedLate = 1; });
+        notify(msg.id, "late", `⚠ Запис почався з ${Math.round(msg.t0)}-ї секунди`, `${title(h)}: початок матчу не записано. Наступного разу відкривай переглядач до старту.`);
+      }
+      if (h && stale && Date.now() - msg.lastWall > 15000 && !h.notifiedStale) {
+        updateHist(msg.id, x => { x.notifiedStale = 1; });
+        notify(msg.id, "stale", "⚠ Кадри матчу не надходять", `${title(h)}: ${Math.round((Date.now() - msg.lastWall) / 1000)} с без кадрів. Перезавантаж вкладку переглядача — запис продовжиться.`);
+      }
+      if (!msg.stopped) badge(tabId, stale ? "!" : "REC", late || stale ? ORANGE : RED);
+    });
+    return;
+  }
+  if (!msg.id) return;
+  const safeId = safe(msg.id);
+  if (msg.type === "save" && (msg.data || msg.b64)) {
+    const b64 = (msg.b64 ? Promise.resolve(msg.b64) : gzipBase64(msg.data)).then(b => fit(b, msg.data));
+    b64.then(b => download("data:application/gzip;base64," + b, `${FOLDER}/match-${safeId}.json.gz`, tabId, "OK", reply,
+      (ok, dl) => updateHist(msg.id, h => {
+        if (ok) {
+          h.rec = { at: Date.now(), n: msg.n || (h.rec && h.rec.n) || h.n, dl, why: msg.why };
+          chrome.alarms.create("check:" + msg.id, { delayInMinutes: 5 });   // report + screenshot by then
+        }
+        else (h.err = h.err || []).push("запис: помилка збереження");
+      })))
+      .catch(() => { badge(tabId, "ERR", RED); reply({ ok: false }); });
+    return true;
+  }
+  if (msg.type === "report" && msg.text) {
+    const b = bytesToB64(new TextEncoder().encode(msg.text));
+    download("data:text/plain;charset=utf-8;base64," + b, `${FOLDER}/report-${safeId}.txt`, tabId, "REP", reply,
+      (ok, dl) => updateHist(msg.id, h => {
+        if (!ok) return;
+        h.report = { at: Date.now(), dl, full: msg.full !== false };
+        const k = msg.text.indexOf("Behind the Scenes");
+        const tm = parseTeams(k >= 0 ? msg.text.slice(k) : msg.text);
+        if (tm) Object.assign(h, tm);
+      }).then(() => endCheck(msg.id, false)));
+    return true;
+  }
+});
+
+// Portal data (bridge.js) → portal.json beside the matches, read by the emulator site.
+// Written only when something in it changed; the popup shows when and what.
+async function digest(text) {
+  const b = new Uint8Array(await crypto.subtle.digest("SHA-1", new TextEncoder().encode(text)));
+  return [...b].map(x => x.toString(16).padStart(2, "0")).join("");
+}
+chrome.runtime.onMessage.addListener((msg, sender, reply) => {
+  if (!msg || msg.type !== "portal" || !msg.data) return;
+  (async () => {
+    const d = msg.data, body = JSON.stringify(d);
+    await keepTableAndResults(d).catch(() => {});
+    const hash = await digest(body);
+    const { portal: old = {} } = await chrome.storage.local.get("portal");
+    const info = { checked: Date.now(), name: d.team && d.team.name, rank: d.standing && d.standing.rank,
+                   total: d.total_teams, teams: d.table.length, matches: d.matches.length };
+    if (old.hash === hash && old.saved) {
+      await chrome.storage.local.set({ portal: { ...old, ...info } });
+      reply({ ok: true, same: true, ...info });
+      return;
+    }
+    const text = JSON.stringify({ ...d, saved: new Date().toISOString() });
+    const b = bytesToB64(new TextEncoder().encode(text));
+    download("data:application/json;charset=utf-8;base64," + b, `${FOLDER}/portal.json`, undefined, null, null, async ok => {
+      if (ok) await chrome.storage.local.set({ portal: { ...info, hash, saved: Date.now() } });
+      reply({ ok, ...info });
+    });
+  })();
+  return true;
+});
+
+// Screenshot of the tab that asked, only while it is the visible tab of its window
+// (captureVisibleTab can only see that one); otherwise the page asks again when shown.
+chrome.runtime.onMessage.addListener((msg, sender, reply) => {
+  if (!msg || msg.type !== "shot" || !msg.id || !sender.tab) return;
+  const tab = sender.tab;
+  chrome.tabs.query({ active: true, windowId: tab.windowId }, act => {
+    if (!act || !act[0] || act[0].id !== tab.id) { reply({ ok: false, hidden: true }); return; }
+    chrome.tabs.captureVisibleTab(tab.windowId, { format: "png" }, url => {
+      if (chrome.runtime.lastError || !url) { reply({ ok: false }); return; }
+      download(url, `${FOLDER}/final-${safe(msg.id)}.png`, tab.id, null, reply,
+        (ok, dl) => ok && updateHist(msg.id, h => { h.shot = { at: Date.now(), dl }; }).then(() => endCheck(msg.id, false)));
+    });
+  });
+  return true;
+});
+
+// Popup buttons.
+chrome.runtime.onMessage.addListener((msg, sender, reply) => {
+  if (!msg || sender.tab) return;   // only from the popup
+  if (msg.type === "popup-save") {
+    // Stop recording in that tab and save everything it has.
+    chrome.tabs.sendMessage(msg.tabId, { type: "save-now" }, resp => {
+      const ok = !chrome.runtime.lastError && resp && resp.ok;
+      if (!ok) badge(msg.tabId, "—", GREY);
+      reply({ ok: !!ok });
+    });
+    return true;
+  }
+  if (msg.type === "popup-shot") {
+    // Screenshot of the visible tab right now (e.g. the final score on the viewer).
+    chrome.tabs.captureVisibleTab(msg.windowId, { format: "png" }, url => {
+      if (chrome.runtime.lastError || !url) { reply({ ok: false }); return; }
+      const stamp = new Date().toISOString().slice(0, 19).replace(/[-:T]/g, "");
+      const name = msg.id ? `shot-${safe(msg.id)}-${stamp}.png` : `shot-${stamp}.png`;
+      download(url, `${FOLDER}/${name}`, undefined, null, reply,
+        (ok, dl) => ok && msg.id && updateHist(msg.id, h => { h.manualShot = { at: Date.now(), dl }; })
+          .then(() => endCheck(msg.id, false)));
+    });
+    return true;
+  }
+  if (msg.type === "popup-folder") {
+    if (msg.dl) chrome.downloads.show(msg.dl); else chrome.downloads.showDefaultFolder();
+    reply({ ok: true });
+    return;
+  }
+});
+
+chrome.tabs.onRemoved.addListener(tabId => chrome.storage.session.remove("tab:" + tabId).catch(() => {}));
+
+// ---- AWS credentials: Workshop Studio gives short-lived keys. Every 15 min the native helper checks
+// the keys in the project's .env; when they no longer work (or on "Оновити зараз" in the popup), the
+// dashboard opens in a background tab, its "Get AWS CLI credentials" panel is opened, the export block
+// is read and the tab closes. The helper checks the keys with AWS and only then writes .env.
+// The keys pass through memory only: never chrome.storage, never the console.
+const CRED_HOST = "com.drunkards.emulator";
+const DASH = "https://catalog.us-east-1.prod.workshops.aws/event/dashboard/en-US";
+// The team package (package.sh) has no native helper and no nativeMessaging permission: then
+// everything that needs it (AWS keys, coach name, emulator site, local results) stays off.
+const HAS_NATIVE = typeof chrome.runtime.sendNativeMessage === "function";
+const nativeCall = msg => !HAS_NATIVE ? Promise.resolve({ ok: false, missing: true, error: "no native helper" })
+  : new Promise(res => chrome.runtime.sendNativeMessage(CRED_HOST, msg, r =>
+    res(chrome.runtime.lastError ? { ok: false, missing: true, error: chrome.runtime.lastError.message } : r)));
+const credState = st => chrome.storage.local.set({ creds: { ...st, at: Date.now() } });
+
+// runs inside the dashboard tab
+async function grabCreds() {
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  const block = () => [...document.querySelectorAll("code, pre")].map(c => c.textContent)
+    .find(t => /AWS_ACCESS_KEY_ID/.test(t) && /AWS_SECRET_ACCESS_KEY/.test(t));
+  for (let i = 0; i < 60; i++) {                       // up to 30 s for the page and the panel
+    if (!/workshops\.aws$/.test(location.hostname)) return { login: true };
+    const t = block();
+    if (t) return { text: t };
+    const b = [...document.querySelectorAll("a, button")].find(x => x.textContent.trim() === "Get AWS CLI credentials");
+    if (b && i % 6 === 0) b.click();                   // a link in the side menu; again every 3 s until the panel shows
+    await sleep(500);
+  }
+  return { error: /sign.?in|log.?in/i.test(document.body.innerText.slice(0, 2000)) ? "login" : "no credentials panel" };
+}
+
+let credBusy = null;
+function refreshCreds(force) {
+  if (!credBusy) credBusy = doRefresh(force).finally(() => { credBusy = null; });
+  return credBusy;
+}
+async function doRefresh(force) {
+  if (!force) {
+    const c = await nativeCall({ cmd: "creds_check" });
+    if (c.missing) return credState({ ok: false, msg: "помічник не встановлений" });
+    if (c.works) return credState({ ok: true, msg: "ключі працюють", saved: c.saved });
+    if (c.kind === "network") return credState({ ok: false, msg: "AWS не відповідає — немає мережі?" });
+  }
+  await credState({ busy: true, msg: "беру нові ключі з Workshop Studio…" });
+  let tab;
+  try {
+    tab = await chrome.tabs.create({ url: DASH, active: false });
+    await new Promise(res => {
+      const t = setTimeout(res, 30000);
+      const on = (id, info) => { if (id === tab.id && info.status === "complete") { chrome.tabs.onUpdated.removeListener(on); clearTimeout(t); res(); } };
+      chrome.tabs.onUpdated.addListener(on);
+    });
+    const [r] = await chrome.scripting.executeScript({ target: { tabId: tab.id }, func: grabCreds });
+    const got = (r && r.result) || {};
+    if (!got.text) {
+      const msg = got.login || got.error === "login" ? "увійди в Workshop Studio — потім «Оновити зараз»" : "не знайшов ключів на дашборді";
+      chrome.notifications.create("creds", { type: "basic", iconUrl: "icons/icon128.png", title: "AWS-креди не оновлено", message: msg });
+      return credState({ ok: false, msg });
+    }
+    const s = await nativeCall({ cmd: "creds_save", text: got.text });
+    if (!s.ok) {
+      chrome.notifications.create("creds", { type: "basic", iconUrl: "icons/icon128.png", title: "AWS-креди не оновлено", message: s.error || "помилка" });
+      return credState({ ok: false, msg: s.missing ? "помічник не встановлений" : s.error });
+    }
+    return credState({ ok: true, msg: "нові ключі збережено в .env", saved: s.saved });
+  } catch (e) {
+    return credState({ ok: false, msg: String(e.message || e) });
+  } finally {
+    if (tab) chrome.tabs.remove(tab.id).catch(() => {});
+  }
+}
+
+if (HAS_NATIVE) chrome.alarms.get("creds").then(a => { if (!a) chrome.alarms.create("creds", { periodInMinutes: 15, delayInMinutes: 1 }); });   // not reset on every wake-up
+chrome.alarms.onAlarm.addListener(a => { if (a.name === "creds") refreshCreds(false); });
+chrome.runtime.onMessage.addListener((msg, sender, reply) => {
+  if (msg && msg.type === "creds-refresh" && !sender.tab) { refreshCreds(!!msg.force).then(() => reply(true)); return true; }
+});
+
+// Coach name = the version that plays (1.8): bridge.js asks on the portal page which name is wanted and
+// reports how saving it went; both go through the native helper (scripts/coach_name.py).
+chrome.runtime.onMessage.addListener((msg, sender, reply) => {
+  if (!msg || !sender.tab) return;
+  if (msg.type === "coach-wanted") { nativeCall({ cmd: "coach" }).then(reply); return true; }
+  if (msg.type === "coach-report") {
+    chrome.storage.local.set({ coach: { name: msg.name, ok: !!msg.ok, error: msg.error || null, was: msg.was || null, at: Date.now() } });
+    nativeCall({ cmd: "coach_report", name: msg.name, ok: !!msg.ok, error: msg.error || null, was: msg.was || null }).then(() => reply(true));
+    return true;
+  }
+});
+
+// 1.9: every minute the background asks the helper for the wanted name; when a deploy changed it, a portal
+// tab applies it right away, even a hidden one. No portal tab open: one is opened in the background and
+// closed after (at most once per name per 30 min). The portal's sign-in stays in the page.
+const PORTAL = "https://agentic-football.aws.dev/";
+const askTab = (tabId, tries = 5) => new Promise(res => {
+  const go = n => chrome.tabs.sendMessage(tabId, { type: "coach-now" }, r => {
+    if (chrome.runtime.lastError || !r) { if (n > 1) setTimeout(() => go(n - 1), 2000); else res(null); }
+    else res(r);
+  });
+  go(tries);
+});
+async function coachCheck() {
+  const w = await nativeCall({ cmd: "coach" });
+  if (!w || !w.enabled || !w.name) return;
+  const { coach = {}, coachTab = {} } = await chrome.storage.local.get(["coach", "coachTab"]);
+  if (coach.ok && coach.name === w.name) return;
+  let tabs = await chrome.tabs.query({ url: PORTAL + "*" });
+  let opened = null;
+  if (!tabs.length) {
+    if (coachTab.name === w.name && Date.now() - (coachTab.at || 0) < 30 * 60e3) return;
+    await chrome.storage.local.set({ coachTab: { name: w.name, at: Date.now() } });
+    opened = await chrome.tabs.create({ url: PORTAL + "v2/player", active: false });
+    await new Promise(res => {
+      const t = setTimeout(res, 30000);
+      const on = (id, info) => { if (id === opened.id && info.status === "complete") { chrome.tabs.onUpdated.removeListener(on); clearTimeout(t); res(); } };
+      chrome.tabs.onUpdated.addListener(on);
+    });
+    tabs = [opened];
+  }
+  try {
+    for (const t of tabs) {
+      const r = await askTab(t.id, opened ? 5 : 1);
+      if (!r) continue;
+      if (r.have === w.name) await chrome.storage.local.set({ coach: { ...coach, name: w.name, ok: true, error: null, at: Date.now() } });
+      break;
+    }
+  } finally {
+    if (opened) setTimeout(() => chrome.tabs.remove(opened.id).catch(() => {}), 3000);
+  }
+}
+if (HAS_NATIVE) chrome.alarms.get("coach").then(a => { if (!a) chrome.alarms.create("coach", { periodInMinutes: 1, delayInMinutes: 1 }); });
+chrome.alarms.onAlarm.addListener(a => { if (a.name === "coach") coachCheck().catch(() => {}); });
+
+// ---- Incoming challenges (1.11). A portal tab reads them (bridge.js, the portal's own sign-in);
+// here they are kept for the popup (storage.session "invites"), each new one is announced once,
+// and an invite is accepted on your click: the popup's "Прийняти" or the notification's button.
+// 1.13: an auto-accept switch for the workshop day only (storage.local autoAccept {on, until}):
+// off by default, it turns itself off at the end of the day it was switched on, and it never
+// works on the tournament days 28-29.10.2026 (OrgCrew: every challenge there is accepted by hand).
+// After accepting, the viewer opens in a new tab.
+const portalTabs = () => chrome.tabs.query({ url: SITE + "/*" });
+// tournament days: auto-accept never runs (UTC, a little wider than the published schedule)
+const TOURNAMENT = [Date.parse("2026-10-28T00:00:00Z"), Date.parse("2026-10-30T00:00:00Z")];
+const inTournament = (t = Date.now()) => t >= TOURNAMENT[0] && t < TOURNAMENT[1];
+async function autoAcceptActive() {
+  const { autoAccept } = await chrome.storage.local.get("autoAccept");
+  if (!autoAccept || !autoAccept.on) return false;
+  if (Date.now() >= (autoAccept.until || 0) || inTournament()) {
+    await chrome.storage.local.set({ autoAccept: { on: false, offAt: Date.now() } });   // expired: off for good
+    return false;
+  }
+  return true;
+}
+async function storeInvites(res) {
+  if (!res) return;
+  const prev = (await chrome.storage.session.get("invites")).invites || {};
+  const inv = res.ok ? { ok: true, items: res.items, eventId: res.eventId, teamId: res.teamId, at: res.at || Date.now() }
+                     : { ...prev, ok: false, why: res.why, at: Date.now() };
+  await chrome.storage.session.set({ invites: inv });
+  if (!res.ok) return;
+  const { invSeen = [] } = await chrome.storage.session.get("invSeen");
+  const auto = await autoAcceptActive();
+  for (const it of res.items) {
+    if (invSeen.includes(it.matchId)) continue;
+    invSeen.push(it.matchId);
+    if (auto) {
+      const r = await acceptInvite(it.matchId);
+      chrome.notifications.create("invauto:" + it.matchId, { type: "basic", iconUrl: "icons/icon128.png",
+        title: r && r.ok ? `Прийнято автоматично: ${it.from}` : `Не вдалося прийняти: ${it.from}`,
+        message: r && r.ok ? "Переглядач відкрито. Авто-прийняття вимкнеться саме о 23:59." : (r && r.why) || "помилка" });
+      if (r && r.ok) continue;
+    }
+    const until = it.expires ? " · діє до " + new Date(it.expires).toLocaleTimeString("uk-UA") : "";
+    try {
+      chrome.notifications.create("inv:" + it.matchId, {
+        type: "basic", iconUrl: "icons/icon128.png", priority: 2, requireInteraction: true,
+        title: `Виклик від ${it.from}`, message: `Прийняти матч?${until}\nПісля прийняття відкриється переглядач.`,
+        buttons: [{ title: "Прийняти" }] });
+    } catch (e) {}
+  }
+  for (const id of invSeen) if (!res.items.some(x => x.matchId === id)) chrome.notifications.clear("inv:" + id);
+  await chrome.storage.session.set({ invSeen: invSeen.slice(-50) });
+}
+async function pollInvites() {
+  const tabs = await portalTabs();
+  if (!tabs.length) {
+    const prev = (await chrome.storage.session.get("invites")).invites || {};
+    await chrome.storage.session.set({ invites: { ...prev, ok: false, why: "no portal tab", items: [], at: Date.now() } });
+    return;
+  }
+  // prefer a tab that is not a match viewer (its page is busy with the game)
+  const t = tabs.find(x => !/\/viewer/.test(x.url || "")) || tabs[0];
+  const res = await new Promise(r => chrome.tabs.sendMessage(t.id, { type: "invites-now" }, x => r(chrome.runtime.lastError ? null : x)));
+  await storeInvites(res || { ok: false, why: "portal tab not ready (reload it)" });
+}
+async function acceptInvite(matchId) {
+  const inv = (await chrome.storage.session.get("invites")).invites || {};
+  const it = (inv.items || []).find(x => x.matchId === matchId);
+  if (!it || !inv.eventId) return { ok: false, why: "виклику вже немає" };
+  const tabs = await portalTabs();
+  const t = tabs.find(x => !/\/viewer/.test(x.url || "")) || tabs[0];
+  if (!t) return { ok: false, why: "немає вкладки порталу" };
+  const res = await new Promise(r => chrome.tabs.sendMessage(t.id, { type: "invite-accept", eventId: inv.eventId, matchId },
+    x => r(chrome.runtime.lastError ? { ok: false, why: "вкладка порталу не відповіла" } : x)));
+  if (res && res.ok) {
+    chrome.notifications.clear("inv:" + matchId);
+    await chrome.storage.session.set({ invites: { ...inv, items: (inv.items || []).filter(x => x.matchId !== matchId) } });
+    // viewer in a visible tab: the recording starts at once and auto-START (if on) can click
+    await chrome.tabs.create({ url: `${SITE}/v2/player/matches/${res.matchId || matchId}/viewer`, active: true });
+  }
+  return res || { ok: false, why: "немає відповіді" };
+}
+chrome.runtime.onMessage.addListener((msg, sender, reply) => {
+  if (!msg) return;
+  if (msg.type === "invites" && sender.tab) { storeInvites(msg.res); return; }
+  if (sender.tab) return;   // the rest only from the popup
+  if (msg.type === "popup-invites-now") { pollInvites().then(() => reply({ ok: true })); return true; }
+  if (msg.type === "popup-accept" && msg.matchId) { acceptInvite(msg.matchId).then(reply); return true; }
+});
+chrome.notifications.onButtonClicked.addListener((nid, idx) => {
+  if (!nid.startsWith("inv:") || idx !== 0) return;
+  acceptInvite(nid.slice(4)).then(r => {
+    if (!r.ok) chrome.notifications.create("invfail:" + Date.now(), { type: "basic", iconUrl: "icons/icon128.png",
+      title: "Не вдалося прийняти виклик", message: r.why || "помилка" });
+  });
+});
+chrome.notifications.onClicked.addListener(nid => {
+  if (!nid.startsWith("inv:")) return;
+  // the notification body: show the portal (its own Accept is there too); accepting stays a click
+  portalTabs().then(tabs => {
+    const t = tabs.find(x => /\/v2\/player\/?$/.test(x.url || ""));
+    if (t) { chrome.tabs.update(t.id, { active: true }); chrome.windows.update(t.windowId, { focused: true }); }
+    else chrome.tabs.create({ url: SITE + "/v2/player" });
+  });
+});
+chrome.alarms.get("invites").then(a => { if (!a) chrome.alarms.create("invites", { periodInMinutes: 0.5, delayInMinutes: 0.1 }); });
+chrome.alarms.onAlarm.addListener(a => { if (a.name === "invites") pollInvites().catch(() => {}); });
+
+// ---- auto-START screen check (1.12): is the orange START button on the viewer's canvas?
+// bridge.js sends the 16:9 picture's rectangle (CSS px); the visible tab is captured and looked
+// at in memory only (never saved). Answer: found + where its centre is (fractions of the picture).
+const isOrange = (r, g, b) => r > 200 && g > 90 && g < 215 && b < 110 && r - b > 120;
+chrome.runtime.onMessage.addListener((msg, sender, reply) => {
+  if (!msg || msg.type !== "start-check" || !sender.tab || !msg.pic) return;
+  const tab = sender.tab;
+  chrome.tabs.query({ active: true, windowId: tab.windowId }, act => {
+    if (!act || !act[0] || act[0].id !== tab.id) { reply({ ok: false, why: "not the visible tab" }); return; }
+    chrome.tabs.captureVisibleTab(tab.windowId, { format: "jpeg", quality: 70 }, async url => {
+      try {
+        if (chrome.runtime.lastError || !url) { reply({ ok: false, why: "capture failed" }); return; }
+        const bmp = await createImageBitmap(await (await fetch(url)).blob());
+        const cv = new OffscreenCanvas(bmp.width, bmp.height);
+        const ctx = cv.getContext("2d");
+        ctx.drawImage(bmp, 0, 0);
+        const k = bmp.width / msg.vw, p = msg.pic;
+        const px = (fx, fy) => {
+          const x = Math.round((p.x + p.w * fx) * k), y = Math.round((p.y + p.h * fy) * k);
+          if (x < 0 || y < 0 || x >= bmp.width || y >= bmp.height) return false;
+          const d = ctx.getImageData(x, y, 1, 1).data;
+          return isOrange(d[0], d[1], d[2]);
+        };
+        // 1) where it was on 27.10: centre, 85% down (samples around the label)
+        const pts = [];
+        for (const dx of [-0.09, -0.06, -0.03, 0.03, 0.06, 0.09]) for (const dy of [-0.025, 0, 0.025]) pts.push([0.5 + dx, 0.85 + dy]);
+        const share = pts.filter(([x, y]) => px(x, y)).length / pts.length;
+        if (share >= 0.5) { reply({ ok: true, found: true, fx: 0.5, fy: 0.85, share }); return; }
+        // 2) moved a little: centre of the orange points in the lower middle of the picture
+        let n = 0, sx = 0, sy = 0;
+        for (let fy = 0.6; fy <= 0.97; fy += 0.01) for (let fx = 0.25; fx <= 0.75; fx += 0.01) if (px(fx, fy)) { n++; sx += fx; sy += fy; }
+        if (n >= 60) reply({ ok: true, found: true, fx: sx / n, fy: sy / n, share, n });
+        else reply({ ok: true, found: false, share, n });
+      } catch (e) { reply({ ok: false, why: String(e && e.message || e) }); }
+    });
+  });
+  return true;
+});
+
+// ---- Ping (1.14): the popup asks, a portal tab reads it with the portal's sign-in.
+chrome.runtime.onMessage.addListener((msg, sender, reply) => {
+  if (!msg || msg.type !== "popup-ping" || sender.tab) return;
+  (async () => {
+    const tabs = await chrome.tabs.query({ url: SITE + "/*" });
+    const t = tabs.find(x => !/\/viewer/.test(x.url || "")) || tabs[0];
+    if (!t) return { ok: false, why: "no portal tab" };
+    return await new Promise(r => chrome.tabs.sendMessage(t.id, { type: "ping-now", matchId: msg.matchId || null },
+      x => r(chrome.runtime.lastError ? { ok: false, why: "portal tab not ready (reload it)" } : x)));
+  })().then(r => { chrome.storage.session.set({ ping: r }); reply(r); });
+  return true;
+});
+
+// ---- Opponents (1.15): place, win rate and our record against them, for the popup.
+// The table (all teams) and our results come with every portal read (bridge.js portalSync);
+// the portal lists only our newest 100 matches, so results are kept here by match id and grow,
+// and the older ones come from the ingested matches through the native helper ("h2h").
+async function keepTableAndResults(d) {
+  const lb = (d.table || []).map(t => ({ rank: t.rank, id: t.team_id, name: t.team_name, p: t.matches_played,
+                                         w: t.wins, d: t.draws, l: t.losses, pts: t.points }));
+  const us = d.team ? { id: d.team.team_id, name: d.team.name } : null;
+  const { h2hPortal = {} } = await chrome.storage.local.get("h2hPortal");
+  for (const m of d.matches || []) {
+    const r = m.result;
+    if (m.status !== "completed" || !r || !us) continue;
+    const home = m.home_team_id === us.id;
+    h2hPortal[m.match_id] = { opp: home ? m.away_team_name : m.home_team_name, oppId: home ? m.away_team_id : m.home_team_id,
+      us: home ? r.home_score : r.away_score, them: home ? r.away_score : r.home_score, at: m.completed_at || m.created_at,
+      practice: !!m.is_practice };
+  }
+  await chrome.storage.local.set({ lb: { at: Date.now(), total: d.total_teams, us, teams: lb }, h2hPortal });
+}
+async function h2hData() {
+    let { h2hLocal } = await chrome.storage.local.get("h2hLocal");
+    if (!h2hLocal || Date.now() - h2hLocal.at > 10 * 60e3) {
+      const r = await nativeCall({ cmd: "h2h" });
+      if (r && r.ok) { h2hLocal = { at: Date.now(), matches: r.matches }; await chrome.storage.local.set({ h2hLocal }); }
+    }
+    const { lb = null, h2hPortal = {} } = await chrome.storage.local.get(["lb", "h2hPortal"]);
+    const all = { ...Object.fromEntries(((h2hLocal && h2hLocal.matches) || []).map(m => [m.id, { opp: m.opp, us: m.us, them: m.them, at: m.date, version: m.version }])) };
+    for (const [id, m] of Object.entries(h2hPortal)) all[id] = { ...(all[id] || {}), ...m };
+    const { autoAccept = null, autoStart = false } = await chrome.storage.local.get(["autoAccept", "autoStart"]);
+    return { ok: true, lb, matches: all, local: !!h2hLocal, autoStart, autoAccept };
+}
+// read-only data: the popup and (1.16) the match panel on the viewer page ask for it
+chrome.runtime.onMessage.addListener((msg, sender, reply) => {
+  if (!msg || (msg.type !== "popup-h2h" && msg.type !== "panel-h2h")) return;
+  if (msg.type === "popup-h2h" && sender.tab) return;
+  h2hData().then(reply);
+  return true;
+});
+
+// ---- After the extension is reloaded or updated (1.21): open portal tabs lose the old bridge.js
+// (panel, challenges, auto-START, saving), so it is injected again; the recorder in the page itself
+// (recorder.js, page world) keeps running and keeps recording through the reload.
+chrome.runtime.onInstalled.addListener(async () => {
+  try {
+    const tabs = await chrome.tabs.query({ url: SITE + "/*" });
+    for (const t of tabs) chrome.scripting.executeScript({ target: { tabId: t.id }, files: ["bridge.js"] }).catch(() => {});
+  } catch (e) {}
+});

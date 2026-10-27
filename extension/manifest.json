@@ -1,0 +1,55 @@
+{
+  "manifest_version": 3,
+  "name": "Drunkards match recorder",
+  "version": "1.22",
+  "description": "Records your Agentic Football matches (Downloads/agentic-football-matches), shows the opponent's place, win rate and our record in the viewer, announces challenges, auto-START.",
+  "permissions": [
+    "downloads",
+    "storage",
+    "notifications",
+    "alarms",
+    "scripting"
+  ],
+  "host_permissions": [
+    "https://agentic-football.aws.dev/*",
+    "<all_urls>"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "action": {
+    "default_title": "Drunkards match recorder",
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png"
+    }
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://agentic-football.aws.dev/*"
+      ],
+      "js": [
+        "recorder.js"
+      ],
+      "run_at": "document_start",
+      "world": "MAIN"
+    },
+    {
+      "matches": [
+        "https://agentic-football.aws.dev/*"
+      ],
+      "js": [
+        "bridge.js"
+      ],
+      "run_at": "document_start"
+    }
+  ]
+}

@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="uk">
+<head>
+<meta charset="utf-8">
+<title>Drunkards recorder</title>
+<style>
+  :root {
+    --bg: #ffffff; --fg: #1d1f23; --muted: #6b7079; --line: #e4e6ea; --card: #f6f7f9;
+    --red: #c62828; --green: #2e7d32; --orange: #e65100; --grey: #8a8f98;
+    --warn-bg: #fff4e5; --warn-fg: #8a3c00; --btn: #1d1f23; --btn-fg: #fff;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1b1c1f; --fg: #eceef1; --muted: #9aa0a8; --line: #2e3035; --card: #24262a;
+      --red: #ef5350; --green: #66bb6a; --orange: #ffa726; --grey: #8a8f98;
+      --warn-bg: #3a2a14; --warn-fg: #ffcc80; --btn: #eceef1; --btn-fg: #1b1c1f;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; width: 360px; background: var(--bg); color: var(--fg);
+         font: 13px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+  header { display: flex; justify-content: space-between; align-items: baseline;
+           padding: 12px 14px 8px; }
+  header b { font-size: 14px; }
+  header span { color: var(--muted); font-size: 11px; }
+  .card { margin: 0 10px; padding: 12px; background: var(--card); border-radius: 10px; }
+  .pill { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; font-size: 12px; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+  .rec { color: var(--red); } .rec .dot { animation: blink 1.2s infinite; }
+  .ok { color: var(--green); } .warn { color: var(--orange); } .idle { color: var(--grey); } .bad { color: var(--red); }
+  @keyframes blink { 50% { opacity: .25; } }
+  .teams { margin: 8px 0 2px; font-size: 15px; font-weight: 600; display: flex; gap: 8px;
+           align-items: baseline; flex-wrap: wrap; }
+  .teams .score { font-variant-numeric: tabular-nums; font-size: 17px; }
+  .meta { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+  ul.checks { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 4px; }
+  ul.checks li { display: flex; gap: 8px; align-items: center; }
+  ul.checks .mark { width: 16px; text-align: center; font-weight: 700; }
+  ul.checks .mark.ok { color: var(--green); } ul.checks .mark.wait { color: var(--muted); font-weight: 400; }
+  ul.checks .when { margin-left: auto; color: var(--muted); font-size: 11px; }
+  .warns { margin-top: 10px; padding: 8px 10px; border-radius: 8px; background: var(--warn-bg);
+           color: var(--warn-fg); font-size: 12px; display: grid; gap: 4px; }
+  .hint { margin-top: 8px; color: var(--muted); font-size: 12px; }
+  .buttons { display: flex; gap: 6px; margin: 10px 10px 0; flex-wrap: wrap; }
+  button { font: inherit; font-size: 12px; padding: 6px 8px; border-radius: 7px; cursor: pointer;
+           border: 1px solid var(--line); background: var(--bg); color: var(--fg); }
+  button.primary { background: var(--btn); color: var(--btn-fg); border-color: var(--btn); }
+  button:disabled { opacity: .45; cursor: default; }
+  button[hidden] { display: none; }
+  h2 { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted);
+       margin: 14px 14px 4px; font-weight: 600; }
+  table { width: calc(100% - 20px); margin: 0 10px 12px; border-collapse: collapse; table-layout: fixed; }
+  th { font-weight: 500; color: var(--muted); font-size: 10px; text-align: center; padding: 0 0 3px; }
+  td { padding: 5px 4px; border-top: 1px solid var(--line); vertical-align: middle; }
+  tr.match { cursor: pointer; } tr.match:hover td { background: var(--card); }
+  td.time { color: var(--muted); font-size: 11px; width: 38px; font-variant-numeric: tabular-nums; }
+  td.name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  td.f, th.f { width: 40px; text-align: center; font-weight: 700; }
+  td.f.y { color: var(--green); } td.f.n { color: var(--orange); } td.f.p { color: var(--muted); font-weight: 400; }
+  .empty { color: var(--muted); padding: 6px 14px 14px; font-size: 12px; }
+  footer { color: var(--muted); font-size: 11px; padding: 0 14px 12px; }
+  .switch { display: flex; align-items: center; gap: 8px; margin: 10px 14px 0; cursor: pointer; font-size: 12px; }
+  .switch input { position: absolute; opacity: 0; width: 0; height: 0; }
+  .switch .knob { position: relative; width: 30px; height: 17px; border-radius: 9px; background: var(--line); flex: none; transition: background .15s; }
+  .switch .knob::after { content: ""; position: absolute; top: 2px; left: 2px; width: 13px; height: 13px; border-radius: 50%; background: var(--bg); transition: left .15s; }
+  .switch input:checked + .knob { background: var(--green); }
+  .switch input:checked + .knob::after { left: 15px; }
+  .switch input:focus-visible + .knob { outline: 2px solid var(--fg); outline-offset: 2px; }
+  .muted { color: var(--muted); }
+  .opp { font-size: 11px; color: var(--muted); margin-top: 2px; line-height: 1.35; }
+  .inv .opp { color: inherit; opacity: .85; }
+  table.ping { width: 100%; margin: 0; table-layout: auto; font-variant-numeric: tabular-nums; }
+  table.ping th { text-align: right; font-size: 10px; font-weight: 500; color: var(--muted); padding: 0 4px 3px; }
+  table.ping th:first-child, table.ping td:first-child { text-align: left; }
+  table.ping td { text-align: right; padding: 3px 4px; border-top: 1px solid var(--line); font-size: 12px; }
+  .lat-ok { color: var(--green); } .lat-mid { color: var(--orange); } .lat-bad { color: var(--red); font-weight: 600; }
+  #invites { margin: 0 10px 8px; display: grid; gap: 6px; }
+  .inv { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 10px;
+         background: var(--warn-bg); color: var(--warn-fg); }
+  .inv .who { font-weight: 700; font-size: 13px; }
+  .inv .left { font-size: 11px; opacity: .85; font-variant-numeric: tabular-nums; }
+  .inv button { margin-left: auto; background: var(--green); border-color: var(--green); color: #fff; font-weight: 600; }
+  .invnote { color: var(--muted); font-size: 11px; padding: 0 4px; }
+  .toast { margin: 8px 10px 0; font-size: 12px; color: var(--muted); min-height: 16px; }
+</style>
+</head>
+<body>
+  <header><b><img src="icons/icon32.png" alt="" width="16" height="16" style="vertical-align:-2px;margin-right:6px">Drunkards recorder</b><span id="ver"></span></header>
+  <div id="invites"></div>
+  <div class="card" id="current"></div>
+  <div class="buttons">
+    <button class="primary" id="save" title="Зупинити запис у цій вкладці і зберегти все, що є">Стоп і зберегти</button>
+    <button id="shot" title="Зберегти скріншот видимої частини вкладки (напр., фінальний рахунок)">Скріншот</button>
+    <button id="folder" title="Показати файли в Finder">Папка</button>
+    <button id="day" title="Скопіювати таблицю сьогоднішніх матчів: час, команди, рахунок, що збережено">Підсумок дня</button>
+  </div>
+  <label class="switch" title="Плагін сам натискає START у переглядачі, поки матч не почався. Приймати виклики все одно треба вручну.">
+    <input type="checkbox" id="autoStart"><span class="knob"></span>
+    <span>Авто-START <span id="autoInfo" class="muted"></span></span>
+  </label>
+  <label class="switch" title="Лише для воркшопу: сам приймає вхідні виклики і відкриває переглядач. Вимикається о 23:59; 28–29.10 (турнір) не працює.">
+    <input type="checkbox" id="autoAccept"><span class="knob"></span>
+    <span>Авто-прийняття викликів <span id="aaInfo" class="muted"></span></span>
+  </label>
+  <div class="toast" id="toast"></div>
+  <h2>Пінг агентів</h2>
+  <div class="card" id="ping"><div class="meta">…</div></div>
+  <h2>Емулятор</h2>
+  <div class="card" id="emu"><div class="pill idle"><span class="dot"></span>перевіряю…</div></div>
+  <div class="buttons">
+    <button class="primary" id="emuOpen" title="Відкрити сайт емулятора (запустити, якщо вимкнений)">Відкрити</button>
+    <button id="emuRestart" title="Перезапустити сайт, щоб він підхопив зміни коду">Перезапустити</button>
+    <button id="emuStop" title="Зупинити сайт емулятора">Зупинити</button>
+  </div>
+  <h2>AWS-креди</h2>
+  <div class="card" id="creds"><div class="pill idle"><span class="dot"></span>ще не перевіряли</div></div>
+  <div class="buttons">
+    <button class="primary" id="credsNow" title="Взяти свіжі ключі з дашборду Workshop Studio і записати в .env">Оновити зараз</button>
+    <button id="credsCheck" title="Перевірити, чи працюють ключі з .env">Перевірити</button>
+  </div>
+  <h2>Дані порталу</h2>
+  <div class="card" id="portal"><div class="meta">…</div></div>
+  <div class="buttons">
+    <button id="portalNow" title="Забрати з порталу нашу команду, всю таблицю і наші матчі для сайту емулятора">Оновити зараз</button>
+  </div>
+  <h2>Останні матчі</h2>
+  <div id="list"></div>
+  <footer>Файли: Downloads/agentic-football-matches · клік по матчу відкриває його звіт</footer>
+  <script src="popup.js"></script>
+</body>
+</html>
