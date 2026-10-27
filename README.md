@@ -5,7 +5,7 @@
 **Scout every opponent, never lose a match recording, and never miss a challenge in the Agentic Football Cup.**
 
 ![Chrome](https://img.shields.io/badge/Chrome-extension-4285F4?logo=googlechrome&logoColor=white)
-![Version](https://img.shields.io/badge/version-1.24-22d3ee)
+![Version](https://img.shields.io/badge/version-1.25-22d3ee)
 ![Manifest](https://img.shields.io/badge/Manifest-V3-6e56cf)
 ![Install](https://img.shields.io/badge/install-one%20command-4ade80)
 ![Privacy](https://img.shields.io/badge/data-stays%20on%20your%20Mac-94a3b8)
@@ -67,8 +67,9 @@ That's it. **To update, run the same command** and press ↻ on the extension's 
 Open **Find opponent** and every team already tells you how it stands:
 
 - `#24` — place in the tournament table
-- `WR 43%` — their win rate overall (red from 60%, yellow from 45%)
-- `vs us 50%` — how often they beat **you** (red from 50%, yellow from 25%)
+- `43%` — their win rate overall (red from 60%, yellow from 45%)
+- `vs us 3-0-3 (50%)` — their wins-draws-losses against **you**, and how often they beat you
+  (red from 50%, yellow from 25%)
 
 Hover a badge for the full story: record, goals and the last result against you.
 

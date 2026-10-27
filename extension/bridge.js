@@ -520,8 +520,8 @@
       .drk-badge{margin-left:12px;font:12px ui-monospace,SFMono-Regular,Menlo,monospace;color:#94a3b8;white-space:nowrap}
       .drk-badge b{font-weight:700}.drk-badge .g{color:#4ade80}.drk-badge .o{color:#fbbf24}.drk-badge .r{color:#f87171}
       .drk-badge .rk{color:#22d3ee;font-weight:700}`;
-    // 1.24: two win rates (the user's wish): overall, and how often they beat us; the full record
-    // goes into the tooltip.
+    // 1.25: overall win rate, their record against us and, in brackets, how often they beat us
+    // ("#24 · 43% · vs us 3-0-3 (50%)"); goals and the last result go into the tooltip.
     const badge = name => {
       const key = nb(name);
       const t = HB.lb && (HB.lb.teams || []).find(x => nb(x.name) === key);
@@ -531,14 +531,15 @@
       const parts = [], tip = [name];
       if (t) {
         const wr = t.p ? Math.round(100 * t.w / t.p) : 0;
-        parts.push(`<span class="rk">#${t.rank}</span>`, `WR <b class="${wr >= 60 ? "r" : wr >= 45 ? "o" : "g"}">${wr}%</b>`);
+        parts.push(`<span class="rk">#${t.rank}</span>`, `<b class="${wr >= 60 ? "r" : wr >= 45 ? "o" : "g"}">${wr}%</b>`);
         tip.push(`#${t.rank} of ${HB.lb.total || HB.lb.teams.length}, win rate ${wr}% (${t.w}-${t.d}-${t.l} of ${t.p})`);
       }
       if (ms.length) {
         const w = ms.filter(m => m.us > m.them).length, l = ms.filter(m => m.us < m.them).length, d = ms.length - w - l;
         const gf = ms.reduce((a, m) => a + m.us, 0), ga = ms.reduce((a, m) => a + m.them, 0), last = ms[ms.length - 1];
         const vs = Math.round(100 * l / ms.length);
-        parts.push(`vs us <b class="${vs >= 50 ? "r" : vs >= 25 ? "o" : "g"}">${vs}%</b>`);
+        const cls = vs >= 50 ? "r" : vs >= 25 ? "o" : "g";
+        parts.push(`vs us <b class="${cls}">${l}-${d}-${w}</b> (<b class="${cls}">${vs}%</b>)`);
         tip.push(`vs us: they won ${l} of ${ms.length}; our record ${w}-${d}-${l}, goals ${gf}:${ga}, last ${last.us}:${last.them}`);
       } else { parts.push("vs us —"); tip.push("never played us"); }
       return { html: parts.join(" · "), title: tip.join("\n") };
