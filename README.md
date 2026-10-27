@@ -124,9 +124,9 @@ Open game tabs pick it up within a minute. **Clear** removes it.
 {
   "name": "D",
   "teams": [
-    "AWSuoliai",
-    "Tik&Taka",
-    "Next-gen"
+    "Team Alpha",
+    "Goal Diggers",
+    "Byte FC"
   ]
 }
 ```
