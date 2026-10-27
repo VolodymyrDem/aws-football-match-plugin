@@ -719,7 +719,8 @@ const normTeam = t => String(t || "").replace(/\s*\((людина|human)\)/i, ""
 async function myGroup() {
   const { userGroup } = await chrome.storage.local.get("userGroup");
   if (userGroup && userGroup.name && Array.isArray(userGroup.teams) && userGroup.teams.length)
-    return { name: String(userGroup.name), teams: userGroup.teams.map(normTeam), own: true };
+    return { name: String(userGroup.name), teams: userGroup.teams.map(normTeam), own: true,
+             groups: userGroup.groups ? Object.fromEntries(Object.entries(userGroup.groups).map(([k, v]) => [k, v.map(normTeam)])) : null };
   let { groupInfo } = await chrome.storage.local.get("groupInfo");
   if (!groupInfo || Date.now() - groupInfo.at > 10 * 60e3) {
     const r = await nativeCall({ cmd: "group" });

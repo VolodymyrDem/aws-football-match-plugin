@@ -337,13 +337,28 @@ const loadH2H = () => chrome.runtime.sendMessage({ type: "popup-h2h" }, r => { i
 // ---- My group (1.41): load your tournament group as JSON {"name": "D", "teams": ["…", …]}; its teams get
 // ⚑ GROUP <name> in Find match, on challenges and on the match panel. Kept in storage.local userGroup.
 function parseGroup(text) {
+  // 1.42: either your group {"name": "D", "teams": [...]} or every group {"mine": "D", "groups": {"A": [...], …}}
   let j;
   try { j = JSON.parse(text); } catch (e) { throw new Error("not valid JSON: " + e.message); }
   if (!j || typeof j !== "object" || Array.isArray(j)) throw new Error('expected an object: {"name": "D", "teams": [...]}');
+  const clean = list => [...new Set((Array.isArray(list) ? list : []).map(t => String(t).trim()).filter(Boolean))];
+  if (j.groups && typeof j.groups === "object" && !Array.isArray(j.groups)) {
+    const groups = {};
+    for (const [k, v] of Object.entries(j.groups)) {
+      const name = String(k).trim(), teams = clean(v);
+      if (!name || name.length > 30) throw new Error(`group "${k}": the name must be 1–30 characters`);
+      if (!teams.length || teams.length > 40) throw new Error(`group "${k}": 1–40 team names`);
+      groups[name] = teams;
+    }
+    if (!Object.keys(groups).length || Object.keys(groups).length > 40) throw new Error('"groups": 1–40 groups');
+    const mine = String(j.mine ?? j.name ?? "").trim();
+    if (!mine || !groups[mine]) throw new Error('"mine": the name of your group, one of the keys in "groups"');
+    return { name: mine, teams: groups[mine], groups, at: Date.now() };
+  }
   const name = String(j.name ?? j.group ?? "").trim();
   if (!name || name.length > 30) throw new Error('"name": the group name, 1–30 characters');
   if (!Array.isArray(j.teams) || !j.teams.length) throw new Error('"teams": a list of team names');
-  const teams = [...new Set(j.teams.map(t => String(t).trim()).filter(Boolean))];
+  const teams = clean(j.teams);
   if (!teams.length || teams.length > 40) throw new Error('"teams": 1–40 team names');
   return { name, teams, at: Date.now() };
 }
@@ -362,7 +377,9 @@ async function renderGroup() {
       <td class="${wr == null ? "" : wr >= 60 ? "bad" : wr >= 45 ? "warn" : "ok"}">${wr == null ? "—" : wr + "%"}</td>
       <td class="${!mm.length ? "muted" : w > l ? "ok" : w < l ? "bad" : "warn"}">${mm.length ? `${w}-${mm.length - w - l}-${l}` : "—"}</td></tr>` };
   }).sort((a, b) => a.rank - b.rank);
+  const others = g.groups ? Object.keys(g.groups).filter(k => k !== g.name) : [];
   el.innerHTML = `<div class="pill ok"><span class="dot"></span>Group ${esc(g.name)} · ${g.teams.length} teams${g.file ? ` <span class="muted" style="font-weight:400">(helper file)</span>` : ""}</div>
+    ${others.length ? `<div class="meta">+ ${others.length} other groups (${esc(others.join(", "))}): their letter shows next to those teams</div>` : ""}
     <table class="gtab"><colgroup><col style="width:46%"><col style="width:16%"><col style="width:16%"><col style="width:22%"></colgroup>
     <tr><th>team</th><th>place</th><th>win</th><th title="our record against them, W-D-L">vs us</th></tr>${rows.map(r => r.html).join("")}</table>`;
 }
@@ -373,7 +390,7 @@ $("groupEditBtn").addEventListener("click", async () => {
   if (open) {
     const { userGroup } = await chrome.storage.local.get("userGroup");
     const g = userGroup || (H2H && H2H.group) || null;
-    if (g && !$("groupText").value) $("groupText").value = JSON.stringify({ name: g.name, teams: userGroup ? g.teams : g.teams }, null, 2);
+    if (g && !$("groupText").value) $("groupText").value = JSON.stringify(g.groups ? { mine: g.name, groups: g.groups } : { name: g.name, teams: g.teams }, null, 2);
   }
   renderGroup();
 });

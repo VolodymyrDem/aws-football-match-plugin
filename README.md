@@ -5,14 +5,14 @@
 **Scout every opponent, never lose a match recording, and never miss a challenge in the Agentic Football Cup.**
 
 ![Chrome](https://img.shields.io/badge/Chrome-extension-4285F4?logo=googlechrome&logoColor=white)
-![Version](https://img.shields.io/badge/version-1.41-22d3ee)
+![Version](https://img.shields.io/badge/version-1.42-22d3ee)
 ![Manifest](https://img.shields.io/badge/Manifest-V3-6e56cf)
 ![Install](https://img.shields.io/badge/install-one%20command-4ade80)
 ![Privacy](https://img.shields.io/badge/data-stays%20on%20your%20Mac-94a3b8)
 
 <img src="docs/viewer-panel.jpg" alt="The live match viewer with the plugin: a strip under the game with shots, xG, possession, a shot map and the agents table; on the right the opponent's place, win rates, form, our record and ping" width="100%">
 
-<sub>The live match viewer. Under the game: this match in numbers, bars and a shot map, plus your agents. On the right, in place of the empty Coach Live Feed: everything about the opponent.</sub>
+<sub>A real match. Under the game: this match in numbers, bars and a shot map, plus your agents. On the right, in place of the empty Coach Live Feed: everything about the opponent.</sub>
 
 </div>
 
@@ -123,9 +123,10 @@ silent for 20+ s; the popup's **Last match** card shows the same with bars.
 
 ## ⚑ Your tournament group
 
-Load your group once and its teams get a purple **⚑ GROUP <name>** mark in *Find match*, on incoming challenges
-(card and notification) and on the match panel, so you always know which matches count for the table. The
-*Settings* tab then also shows the group as a small table: place, win rate and your record against each team.
+Load your group once and its teams get a purple **⚑ D** mark everywhere on the portal — the leaderboard, match
+lists, *Find match*, incoming challenges (card and notification) and the match panel — so you always know which
+matches count for the table. Load **every group** and the other teams get a grey letter (**B**) too. The
+*Settings* tab then also shows your group as a small table: place, win rate and your record against each team.
 
 **How to load it**
 
@@ -151,6 +152,24 @@ Open game tabs pick it up within a minute. **Clear** removes it.
 |---|---|---|
 | `name` | the group's name, shown as *⚑ GROUP D* | text, 1–30 characters |
 | `teams` | the teams in your group | 1–40 names, written as the portal shows them; capitals and a *(human)* tag are ignored |
+
+**Every group at once** — to see each team's group on the leaderboard, list all groups and say which one is yours:
+
+```json
+{
+  "mine": "D",
+  "groups": {
+    "A": ["Team Alpha", "Goal Diggers"],
+    "B": ["Byte FC", "Null Pointers"],
+    "D": ["Offside Trap", "Kick Stack"]
+  }
+}
+```
+
+| Field | What | Rules |
+|---|---|---|
+| `mine` | the name of your group | one of the keys in `groups` |
+| `groups` | every group: name → its teams | 1–40 groups, each with 1–40 team names |
 
 Your own team in the list does no harm. The group stays in your Chrome only.
 

@@ -663,8 +663,10 @@
       const w = ms.filter(m => m.us > m.them).length, l = ms.filter(m => m.us < m.them).length, d = ms.length - w - l;
       const gf = ms.reduce((a, m) => a + m.us, 0), ga = ms.reduce((a, m) => a + m.them, 0), last = ms[ms.length - 1];
       const wr = ot ? pct(ot.w, ot.p) : null, vs = ms.length ? pct(l, ms.length) : null;
-      const grp = H && H.group && H.group.teams.includes(nn(oppName)) ? H.group.name : null;   // 1.36: own build only
-      const chips = [grp ? `<span class="chip" style="background:#7c3aed;color:#fff" title="in our group: this match counts for the table">⚑ <b>Group ${E(grp)}</b></span>` : "",
+      const grp = H && H.group && H.group.teams.includes(nn(oppName)) ? H.group.name : null;   // 1.36: our group
+      const ogrp = !grp && H && H.group && H.group.groups ? (Object.entries(H.group.groups).find(([, v]) => v.includes(nn(oppName))) || [])[0] : null;
+      const chips = [grp ? `<span class="chip" style="background:#7c3aed;color:#fff" title="in our group: this match counts for the table">⚑ <b>Group ${E(grp)}</b></span>`
+          : ogrp ? `<span class="chip" title="another group">Group ${E(ogrp)}</span>` : "",
         ot ? `<span class="chip">#<b>${ot.rank}</b> of ${H.lb.total || H.lb.teams.length}</span>` : "",
         wr != null ? `<span class="chip">WR <b class="${wr >= 60 ? "r" : wr >= 45 ? "o" : "g"}">${wr}%</b></span>` : "",
         vs != null ? `<span class="chip">vs us <b class="${vs >= 50 ? "r" : vs >= 25 ? "o" : "g"}">${vs}%</b></span>` : (H ? `<span class="chip">never played us</span>` : "")].join("");
@@ -794,13 +796,15 @@
   {
     let HB = null, hbAt = 0;
     const nb = n => String(n || "").replace(/\s*\((\u043b\u044e\u0434\u0438\u043d\u0430|human)\)/i, "").trim().toLowerCase();
+    const groupOf = (G, key) => { if (!G || !G.groups) return null; for (const [k, v] of Object.entries(G.groups)) if (v.includes(key)) return k; return null; };
     const E2 = x => String(x ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
     const loadHB = () => { try { chrome.runtime.sendMessage({ type: "panel-h2h" }, r => { if (r && r.ok) { HB = r; hbAt = Date.now(); } }); } catch (e) {} };
     const css2 = `
       .drk-badge{margin-left:12px;font:12px ui-monospace,SFMono-Regular,Menlo,monospace;color:#94a3b8;white-space:nowrap}
       .drk-badge b{font-weight:700}.drk-badge .g{color:#4ade80}.drk-badge .o{color:#fbbf24}.drk-badge .r{color:#f87171}
       .drk-badge .rk{color:#22d3ee;font-weight:700}
-      .drk-badge .grp{padding:1px 6px;border-radius:4px;background:#7c3aed;color:#fff;font-weight:700}`;
+      .drk-badge .grp{padding:1px 6px;border-radius:4px;background:#7c3aed;color:#fff;font-weight:700}
+      .drk-badge .ogrp{padding:0 5px;border-radius:4px;border:1px solid #475569;color:#94a3b8;font-weight:700}`;
     // 1.25: overall win rate, their record against us and, in brackets, how often they beat us
     // ("#24 · 43% · vs us 3-0-3 (50%)"); goals and the last result go into the tooltip.
     const badge = name => {
@@ -808,10 +812,12 @@
       const t = HB.lb && (HB.lb.teams || []).find(x => nb(x.name) === key);
       const ms = Object.values(HB.matches || {}).filter(m => nb(m.opp) === key)
         .sort((a, b) => String(a.at).localeCompare(String(b.at)));
-      const g = HB.group && HB.group.teams.includes(key) ? HB.group.name : null;   // 1.36: our group (own build only)
-      if (!t && !ms.length && !g) return null;
+      const g = HB.group && HB.group.teams.includes(key) ? HB.group.name : null;   // 1.36: our group
+      const og = !g ? groupOf(HB.group, key) : null;                                    // 1.42: another group
+      if (!t && !ms.length && !g && !og) return null;
       const parts = [], tip = [name];
       if (g) { parts.push(`<span class="grp">⚑ GROUP ${E2(g)}</span>`); tip.push(`in our group ${g}: this match counts for the table`); }
+      else if (og) { parts.push(`<span class="ogrp">GROUP ${E2(og)}</span>`); tip.push(`group ${og} (not ours)`); }
       if (t) {
         const wr = t.p ? Math.round(100 * t.w / t.p) : 0;
         parts.push(`<span class="rk">#${t.rank}</span>`, `<b class="${wr >= 60 ? "r" : wr >= 45 ? "o" : "g"}">${wr}%</b>`);
@@ -849,6 +855,7 @@
       const names = new Set(((HB.lb && HB.lb.teams) || []).map(t => nb(t.name)));
       for (const m of Object.values(HB.matches || {})) names.add(nb(m.opp));
       for (const g of (HB.group && HB.group.teams) || []) names.add(g);
+      for (const v of Object.values((HB.group && HB.group.groups) || {})) for (const g of v) names.add(g);
       const w = document.createTreeWalker(dlg, NodeFilter.SHOW_TEXT);
       const hits = [];
       let n;
@@ -868,6 +875,52 @@
         el.insertAdjacentElement("afterend", b);
       }
     }, 400);
+  }
+
+  // ---- Group chips on every portal page (1.42): next to a team's name on the leaderboard, in match lists, in the
+  // challenge banner — purple "⚑ D" for our group, grey "B" for another group (when every group is loaded).
+  // Not on the match viewer (it has the panel) and not in Find match (its badge already says it).
+  {
+    let HG = null, hgAt = 0;
+    const nb = n => String(n || "").replace(/\s*\((\u043b\u044e\u0434\u0438\u043d\u0430|human)\)/i, "").trim().toLowerCase();
+    const loadHG = () => { try { chrome.runtime.sendMessage({ type: "panel-h2h" }, r => { if (r && r.ok) { HG = r.group || null; hgAt = Date.now(); } }); } catch (e) {} };
+    const css3 = `.drk-gchip{display:inline-block;margin-left:8px;padding:0 6px;border-radius:4px;font:700 11px/16px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;letter-spacing:0;vertical-align:middle;white-space:nowrap;text-transform:none}
+      .drk-gchip.mine{background:#7c3aed;color:#fff}.drk-gchip.other{border:1px solid #475569;color:#94a3b8}`;
+    setInterval(() => {
+      if (!alive() || /\/viewer|\/report/.test(location.pathname) || document.visibilityState !== "visible") return;
+      if (!HG || Date.now() - hgAt > 60000) { loadHG(); if (!HG) return; }
+      const map = new Map();
+      for (const [k, v] of Object.entries(HG.groups || {})) for (const t of v) map.set(t, k);
+      for (const t of HG.teams || []) map.set(t, HG.name);
+      if (!map.size) return;
+      if (!document.getElementById("drk-gchip-css")) {
+        const sEl = document.createElement("style"); sEl.id = "drk-gchip-css"; sEl.textContent = css3;
+        (document.head || document.documentElement).appendChild(sEl);
+      }
+      const w = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+      const hits = [];
+      let n;
+      while ((n = w.nextNode())) {
+        const v = n.nodeValue; if (!v || v.length > 60) continue;
+        const k = nb(v); if (!map.has(k)) continue;
+        const el = n.parentElement;
+        if (!el || el.closest(".drk,.drk-badge,.drk-gchip,input,textarea,[contenteditable],title,script,style")) continue;
+        if (el.nextElementSibling && el.nextElementSibling.classList.contains("drk-badge")) continue;   // Find match row
+        hits.push([el, k]);
+      }
+      for (const [el, k] of hits) {
+        const g = map.get(k), mine = g === HG.name;
+        // inline name: the chip goes right after it; a cell / block that holds only the name: inside, at its end
+        const inside = !/^inline/.test(getComputedStyle(el).display);
+        const cur = inside ? el.querySelector(":scope > .drk-gchip") : (el.nextElementSibling && el.nextElementSibling.classList.contains("drk-gchip") ? el.nextElementSibling : null);
+        if (cur && cur.dataset.team === k) continue;
+        if (cur) cur.remove();
+        const c = document.createElement("span");
+        c.className = "drk-gchip " + (mine ? "mine" : "other"); c.dataset.team = k;
+        c.textContent = mine ? `⚑ ${g}` : g; c.title = mine ? `our group ${g}` : `group ${g}`;
+        if (inside) el.appendChild(c); else el.insertAdjacentElement("afterend", c);
+      }
+    }, 1500);
   }
 
   // Toolbar button: save whatever this tab has recorded so far.
