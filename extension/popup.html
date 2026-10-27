@@ -1,8 +1,8 @@
 <!doctype html>
-<html lang="uk">
+<html lang="en">
 <head>
 <meta charset="utf-8">
-<title>Drunkards recorder</title>
+<title>AWS Football Match Plugin</title>
 <style>
   :root {
     --bg: #ffffff; --fg: #1d1f23; --muted: #6b7079; --line: #e4e6ea; --card: #f6f7f9;
@@ -85,47 +85,47 @@
 </style>
 </head>
 <body>
-  <header><b><img src="icons/icon32.png" alt="" width="16" height="16" style="vertical-align:-2px;margin-right:6px">Drunkards recorder</b><span id="ver"></span></header>
+  <header><b><img src="icons/icon32.png" alt="" width="16" height="16" style="vertical-align:-2px;margin-right:6px">AWS Football Match Plugin</b><span id="ver"></span></header>
   <div id="invites"></div>
   <div class="card" id="current"></div>
   <div class="buttons">
-    <button class="primary" id="save" title="Зупинити запис у цій вкладці і зберегти все, що є">Стоп і зберегти</button>
-    <button id="shot" title="Зберегти скріншот видимої частини вкладки (напр., фінальний рахунок)">Скріншот</button>
-    <button id="folder" title="Показати файли в Finder">Папка</button>
-    <button id="day" title="Скопіювати таблицю сьогоднішніх матчів: час, команди, рахунок, що збережено">Підсумок дня</button>
+    <button class="primary" id="save" title="Stop recording in this tab and save everything so far">Stop & save</button>
+    <button id="shot" title="Save a screenshot of the visible tab (e.g. the final score)">Screenshot</button>
+    <button id="folder" title="Show the files in Finder">Folder</button>
+    <button id="day" title="Copy a table of today's matches: time, teams, score, what was saved">Day summary</button>
   </div>
-  <label class="switch" title="Плагін сам натискає START у переглядачі, поки матч не почався. Приймати виклики все одно треба вручну.">
+  <label class="switch" title="Presses START in the viewer by itself. Challenges are still accepted by hand.">
     <input type="checkbox" id="autoStart"><span class="knob"></span>
-    <span>Авто-START <span id="autoInfo" class="muted"></span></span>
+    <span>Auto-START <span id="autoInfo" class="muted"></span></span>
   </label>
-  <label class="switch" title="Лише для воркшопу: сам приймає вхідні виклики і відкриває переглядач. Вимикається о 23:59; 28–29.10 (турнір) не працює.">
+  <label class="switch" title="Workshop day only: accepts incoming challenges and opens the viewer. Turns off at 23:59; never on the tournament days 28–29 Oct.">
     <input type="checkbox" id="autoAccept"><span class="knob"></span>
-    <span>Авто-прийняття викликів <span id="aaInfo" class="muted"></span></span>
+    <span>Auto-accept challenges <span id="aaInfo" class="muted"></span></span>
   </label>
   <div class="toast" id="toast"></div>
-  <h2>Пінг агентів</h2>
+  <h2>Agents' ping</h2>
   <div class="card" id="ping"><div class="meta">…</div></div>
-  <h2>Емулятор</h2>
-  <div class="card" id="emu"><div class="pill idle"><span class="dot"></span>перевіряю…</div></div>
+  <h2>Emulator</h2>
+  <div class="card" id="emu"><div class="pill idle"><span class="dot"></span>checking…</div></div>
   <div class="buttons">
-    <button class="primary" id="emuOpen" title="Відкрити сайт емулятора (запустити, якщо вимкнений)">Відкрити</button>
-    <button id="emuRestart" title="Перезапустити сайт, щоб він підхопив зміни коду">Перезапустити</button>
-    <button id="emuStop" title="Зупинити сайт емулятора">Зупинити</button>
+    <button class="primary" id="emuOpen" title="Open the emulator site (start it if it is off)">Open</button>
+    <button id="emuRestart" title="Restart the site to pick up code changes">Restart</button>
+    <button id="emuStop" title="Stop the emulator site">Stop</button>
   </div>
-  <h2>AWS-креди</h2>
-  <div class="card" id="creds"><div class="pill idle"><span class="dot"></span>ще не перевіряли</div></div>
+  <h2>AWS keys</h2>
+  <div class="card" id="creds"><div class="pill idle"><span class="dot"></span>not checked yet</div></div>
   <div class="buttons">
-    <button class="primary" id="credsNow" title="Взяти свіжі ключі з дашборду Workshop Studio і записати в .env">Оновити зараз</button>
-    <button id="credsCheck" title="Перевірити, чи працюють ключі з .env">Перевірити</button>
+    <button class="primary" id="credsNow" title="Take fresh keys from the Workshop Studio dashboard and write them to .env">Refresh now</button>
+    <button id="credsCheck" title="Check whether the keys in .env work">Check</button>
   </div>
-  <h2>Дані порталу</h2>
+  <h2>Portal data</h2>
   <div class="card" id="portal"><div class="meta">…</div></div>
   <div class="buttons">
-    <button id="portalNow" title="Забрати з порталу нашу команду, всю таблицю і наші матчі для сайту емулятора">Оновити зараз</button>
+    <button id="portalNow" title="Read our team, the whole table and our matches from the portal">Refresh now</button>
   </div>
-  <h2>Останні матчі</h2>
+  <h2>Recent matches</h2>
   <div id="list"></div>
-  <footer>Файли: Downloads/agentic-football-matches · клік по матчу відкриває його звіт</footer>
+  <footer>Files: Downloads/agentic-football-matches · click a match to open its report</footer>
   <script src="popup.js"></script>
 </body>
 </html>

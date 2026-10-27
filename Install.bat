@@ -1,12 +1,12 @@
 @echo off
-rem Football Match Helper - installer / updater for Windows. Double-click it.
-rem Copies the extension to %LOCALAPPDATA%\FootballMatchHelper, copies that path and opens
+rem AWS Football Match Plugin - installer / updater for Windows. Double-click it.
+rem Copies the extension to %LOCALAPPDATA%\AwsFootballMatchPlugin, copies that path and opens
 rem Chrome's extensions page. Chrome itself does not let any program add an extension.
 chcp 65001 >nul
 set "SRC=%~dp0extension"
-set "DEST=%LOCALAPPDATA%\FootballMatchHelper"
+set "DEST=%LOCALAPPDATA%\AwsFootballMatchPlugin"
 if not exist "%SRC%\manifest.json" (
-  echo Ne znaishov papku extension poruch z instalyatorom. Rozpakui zip povnistyu.
+  echo No extension folder next to the installer. Unzip the whole archive first.
   pause
   exit /b 1
 )
@@ -17,13 +17,13 @@ echo|set /p="%DEST%"|clip
 start "" chrome "chrome://extensions/"
 echo.
 if "%UPDATE%"=="1" (
-  echo Onovleno. U Chrome na kartci "Drunkards match recorder" natysny "onovyty" ^(kruhla strilka^).
+  echo Updated. In Chrome press reload ^(the round arrow^) on the "AWS Football Match Plugin" card.
 ) else (
-  echo Maizhe hotovo. U vkladci chrome://extensions:
-  echo   1. Uvimkny "Developer mode" ^(peremykach sprava vhori^).
-  echo   2. Natysny "Load unpacked".
-  echo   3. Vstav shlyakh ^(Ctrl+V^) u pole adresy vikna vyboru, Enter, potim "Select Folder".
-  echo Shlyakh uzhe skopiyovano: %DEST%
+  echo Almost done. In the chrome://extensions tab:
+  echo   1. Turn on "Developer mode" ^(toggle, top right^).
+  echo   2. Click "Load unpacked".
+  echo   3. Paste the path ^(Ctrl+V^) into the dialog's address field, Enter, then "Select Folder".
+  echo The path is already copied: %DEST%
 )
 echo.
 pause

@@ -81,10 +81,10 @@
   let autoBusy = false;
   setInterval(async () => {
     if (!autoOn || autoDone || autoBusy || !alive()) return;
-    if (document.visibilityState !== "visible") { autoLast = "вкладка не видима"; return; }
-    if (!lastStatus || !lastStatus.lastWall || Date.now() - lastStatus.lastWall > 3000) { autoLast = "чекаю кадрів"; return; }   // frames must flow
+    if (document.visibilityState !== "visible") { autoLast = "tab not visible"; return; }
+    if (!lastStatus || !lastStatus.lastWall || Date.now() - lastStatus.lastWall > 3000) { autoLast = "waiting for frames"; return; }   // frames must flow
     const pic = pictureRect();
-    if (!pic) { autoLast = "немає canvas"; return; }
+    if (!pic) { autoLast = "no canvas"; return; }
     if (!autoT0) autoT0 = Date.now();
     if (Date.now() - autoT0 > 180e3 && autoChecks % 3 !== 0) { autoChecks++; return; }   // after 3 min: every 6 s
     autoBusy = true;
@@ -102,16 +102,16 @@
       if (!r) r = await new Promise(res => chrome.runtime.sendMessage({ type: "start-check", pic, vw: innerWidth, vh: innerHeight },
         x => res(chrome.runtime.lastError ? null : x)));
       autoChecks++;
-      if (!r || !r.ok) { autoLast = "знімок не вдався: " + ((r && r.why) || "немає відповіді"); return; }
+      if (!r || !r.ok) { autoLast = "capture failed: " + ((r && r.why) || "no answer"); return; }
       if (r.found) {
         titleSeen = true; noTitle = 0;
-        if (autoClicks >= 15) { autoDone = true; autoLast = "15 кліків — далі сам"; return; }
-        if (tapAt(pic.x + pic.w * r.fx, pic.y + pic.h * r.fy)) { autoClicks++; autoLast = `натиснуто (${Math.round(r.share * 100)}% кнопки)`; }
-        else autoLast = "кнопка закрита іншим елементом";
+        if (autoClicks >= 15) { autoDone = true; autoLast = "15 clicks, over to you"; return; }
+        if (tapAt(pic.x + pic.w * r.fx, pic.y + pic.h * r.fy)) { autoClicks++; autoLast = `pressed (${Math.round(r.share * 100)}% of the button seen)`; }
+        else autoLast = "the button is covered by another element";
       } else if (titleSeen) {
-        autoDone = true; autoLast = "START натиснуто, гра на екрані";   // the button is gone
+        autoDone = true; autoLast = "START pressed, game on screen";   // the button is gone
       } else {
-        noTitle++; autoLast = `кнопки START не видно (${noTitle})`;
+        noTitle++; autoLast = `START button not seen (${noTitle})`;
       }
     } catch (e) {} finally { autoBusy = false; }
   }, 2000);
@@ -255,7 +255,7 @@
   };
   // Incoming challenges (1.11): the same list the portal's own banner reads
   // (GET /events/<tournament>/match-invites?team_id=<us>&status=pending, invites TO us only).
-  // Accepting happens only when you click "Прийняти" (popup or notification): the background
+  // Accepting happens only when you click "Accept" (popup or notification): the background
   // asks this page to send the portal's own accept request (PUT …/match-invites/<match>/accept).
   let myTeam = null, myTeamAt = 0;
   const invitesNow = async () => {
@@ -373,7 +373,7 @@
     let mid = viewerMid();
     const POSN = ["GK", "DEF", "MID", "FWD1", "FWD2"];
     const E = x => String(x ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
-    const nn = n => String(n || "").replace(/\s*\((людина|human)\)/i, "").trim().toLowerCase();
+    const nn = n => String(n || "").replace(/\s*\((\u043b\u044e\u0434\u0438\u043d\u0430|human)\)/i, "").trim().toLowerCase();
     let H = null, PING = null, folded = false, host = null, box = null;
     try { folded = localStorage.getItem("__drk_panel_folded") === "1"; } catch (e) {}
     const css = `
@@ -410,35 +410,35 @@
       if (!box || !alive()) return;
       layout();
       const pm = PING && PING.match && PING.match.id === mid ? PING.match : null;
-      const oppName = (pm && pm.opp) || headerOpp() || "суперник";
+      const oppName = (pm && pm.opp) || headerOpp() || "opponent";
       const ot = teamRow(oppName, pm && pm.oppId);
       const ms = H ? Object.values(H.matches || {}).filter(m => ((pm && pm.oppId) && m.oppId === pm.oppId) || nn(m.opp) === nn(oppName))
         .sort((a, b) => String(a.at).localeCompare(String(b.at))) : [];
       const w = ms.filter(m => m.us > m.them).length, l = ms.filter(m => m.us < m.them).length, d = ms.length - w - l;
       const gf = ms.reduce((a, m) => a + m.us, 0), ga = ms.reduce((a, m) => a + m.them, 0), last = ms[ms.length - 1];
-      const overall = ot ? `<b class="${pct(ot.w, ot.p) >= 60 ? "r" : pct(ot.w, ot.p) >= 45 ? "o" : "g"}">${pct(ot.w, ot.p)}%</b> <span class="m">(${ot.w}-${ot.d}-${ot.l} з ${ot.p})</span>`
-        : `<span class="m">${H ? "немає в таблиці" : "…"}</span>`;
-      const vsUs = !H ? "…" : ms.length ? `<b class="${l > w ? "r" : l === w ? "o" : "g"}">${pct(l, ms.length)}%</b> <span class="m">(${l} з ${ms.length})</span>` : `<span class="m">ще не грали</span>`;
+      const overall = ot ? `<b class="${pct(ot.w, ot.p) >= 60 ? "r" : pct(ot.w, ot.p) >= 45 ? "o" : "g"}">${pct(ot.w, ot.p)}%</b> <span class="m">(${ot.w}-${ot.d}-${ot.l} of ${ot.p})</span>`
+        : `<span class="m">${H ? "not in the table" : "…"}</span>`;
+      const vsUs = !H ? "…" : ms.length ? `<b class="${l > w ? "r" : l === w ? "o" : "g"}">${pct(l, ms.length)}%</b> <span class="m">(${l} of ${ms.length})</span>` : `<span class="m">never played</span>`;
       const ag = (PING && PING.agents) || [];
       const rows = POSN.map((p, i) => { const a = ag.find(x => x.pos === i) || {};
         return `<tr><td>${p}</td><td>${lat(pm && pm.us ? pm.us[i] : null)}</td><td>${lat(pm && pm.them ? pm.them[i] : null)}</td><td>${lat(a.latency_ms)}</td><td>${lat(a.p99_latency_ms)}</td></tr>`; }).join("");
       const st = lastStatus;
-      const recLine = st && st.n ? `<span class="${st.lastWall && Date.now() - st.lastWall < 8000 ? "g" : "o"}">● запис</span> ${Math.round(st.t || 0)} с · ${Number(st.n).toLocaleString("uk-UA")} кадрів${st.t0 > 3 ? ` <span class="o">· з ${Math.round(st.t0)} с</span>` : ""}`
-        : `<span class="m">запис чекає кадрів</span>`;
+      const recLine = st && st.n ? `<span class="${st.lastWall && Date.now() - st.lastWall < 8000 ? "g" : "o"}">● recording</span> ${Math.round(st.t || 0)} s · ${Number(st.n).toLocaleString("en-GB")} frames${st.t0 > 3 ? ` <span class="o">· from ${Math.round(st.t0)} s</span>` : ""}`
+        : `<span class="m">recording waits for frames</span>`;
       const aa = H && H.autoAccept && H.autoAccept.on && Date.now() < (H.autoAccept.until || 0);
-      const as = !autoOn ? `<span class="m">вимк.</span>` : autoDone ? `<span class="g">${E(autoLast || "готово")}</span>` : `<span class="o">${E(autoLast || "чекаю")}</span>`;
+      const as = !autoOn ? `<span class="m">off</span>` : autoDone ? `<span class="g">${E(autoLast || "done")}</span>` : `<span class="o">${E(autoLast || "waiting")}</span>`;
       box.className = folded ? "folded" : "";
-      box.innerHTML = `<div class="hd"><span class="nm">${E(oppName)}</span>${ot ? `<span class="rk">#${ot.rank}</span><span class="m">з ${H.lb.total || H.lb.teams.length}</span>` : ""}
-          <button title="${folded ? "Показати панель" : "Згорнути — показати Coach Live Feed"}">${folded ? "▸" : "▾"}</button></div>
+      box.innerHTML = `<div class="hd"><span class="nm">${E(oppName)}</span>${ot ? `<span class="rk">#${ot.rank}</span><span class="m">of ${H.lb.total || H.lb.teams.length}</span>` : ""}
+          <button title="${folded ? "Show the panel" : "Fold, show the Coach Live Feed"}">${folded ? "▸" : "▾"}</button></div>
         <div class="bd">
-          <div class="sec"><div class="kv"><span>Вінрейт загалом</span><span>${overall}</span></div>
-            <div class="kv"><span>Вінрейт проти нас</span><span>${vsUs}</span></div>
-            <div class="kv"><span>Наш рахунок з ними</span><span>${ms.length ? `<b class="${w > l ? "g" : w < l ? "r" : "o"}">${w}-${d}-${l}</b> <span class="m">· голи ${gf}:${ga}</span>` : "—"}</span></div>
-            ${last ? `<div class="kv"><span>Останній матч</span><span>${last.us}:${last.them}${last.version ? ` <span class="m">(${E(last.version)})</span>` : ""}</span></div>` : ""}</div>
-          <div class="sec"><div class="lbl">пінг, мс${pm && pm.status !== "completed" ? " · за матч — після фіналу" : ""}</div>
-            <table><tr><th></th><th>ми</th><th>вони</th><th>останні</th><th>p99</th></tr>${rows}</table></div>
-          <div class="sec"><div class="lbl">плагін</div><div>${recLine}</div>
-            <div>Авто-START: ${as}</div><div>Авто-прийняття: ${aa ? `<span class="g">увімк.</span>` : `<span class="m">вимк.</span>`}</div></div>
+          <div class="sec"><div class="kv"><span>Win rate overall</span><span>${overall}</span></div>
+            <div class="kv"><span>Win rate vs us</span><span>${vsUs}</span></div>
+            <div class="kv"><span>Our record vs them</span><span>${ms.length ? `<b class="${w > l ? "g" : w < l ? "r" : "o"}">${w}-${d}-${l}</b> <span class="m">· goals ${gf}:${ga}</span>` : "—"}</span></div>
+            ${last ? `<div class="kv"><span>Last match</span><span>${last.us}:${last.them}${last.version ? ` <span class="m">(${E(last.version)})</span>` : ""}</span></div>` : ""}</div>
+          <div class="sec"><div class="lbl">ping, ms${pm && pm.status !== "completed" ? " · match figures after full time" : ""}</div>
+            <table><tr><th></th><th>us</th><th>them</th><th>recent</th><th>p99</th></tr>${rows}</table></div>
+          <div class="sec"><div class="lbl">plugin</div><div>${recLine}</div>
+            <div>Auto-START: ${as}</div><div>Auto-accept: ${aa ? `<span class="g">on</span>` : `<span class="m">off</span>`}</div></div>
         </div>`;
       box.querySelector("button").onclick = () => {
         folded = !folded;
@@ -514,7 +514,7 @@
   // every 400 ms to rows that lost them (only inside the "Find match" dialog).
   {
     let HB = null, hbAt = 0;
-    const nb = n => String(n || "").replace(/\s*\((людина|human)\)/i, "").trim().toLowerCase();
+    const nb = n => String(n || "").replace(/\s*\((\u043b\u044e\u0434\u0438\u043d\u0430|human)\)/i, "").trim().toLowerCase();
     const loadHB = () => { try { chrome.runtime.sendMessage({ type: "panel-h2h" }, r => { if (r && r.ok) { HB = r; hbAt = Date.now(); } }); } catch (e) {} };
     const css2 = `
       .drk-badge{margin-left:12px;font:12px ui-monospace,SFMono-Regular,Menlo,monospace;color:#94a3b8;white-space:nowrap}
@@ -532,8 +532,8 @@
       }
       if (ms.length) {
         const w = ms.filter(m => m.us > m.them).length, l = ms.filter(m => m.us < m.them).length, d = ms.length - w - l;
-        parts.push(`ми <b class="${w > l ? "g" : w < l ? "r" : "o"}">${w}-${d}-${l}</b>`);
-      } else parts.push("не грали");
+        parts.push(`us <b class="${w > l ? "g" : w < l ? "r" : "o"}">${w}-${d}-${l}</b>`);
+      } else parts.push("never played");
       return parts.join(" · ");
     };
     const dialog = () => {

@@ -1,61 +1,64 @@
-# football-match-helper — розширення Chrome для Agentic Football Cup
+# aws-football-match-plugin — a Chrome extension for the Agentic Football Cup
 
-(у Chrome воно називається «Drunkards match recorder»)
+Records every match you watch on agentic-football.aws.dev, shows the opponent's numbers right in the
+match viewer, announces incoming challenges and can press START for you. It runs only on
+agentic-football.aws.dev and sends nothing anywhere: files go to your Downloads folder.
 
-Записує кожен твій матч на agentic-football.aws.dev, показує дані про суперника просто в переглядачі,
-повідомляє про виклики і сам тисне START. Працює лише на agentic-football.aws.dev; нікуди нічого не
-надсилає — файли падають у твою папку Downloads.
+## Install with one command (macOS / Linux)
 
-## Встановлення (1 хвилина)
+Paste into Terminal:
 
-1. Розпакуй `football-match-helper-<версія>.zip` (подвійний клік).
-2. Запусти інсталятор у розпакованій папці:
-   - **Mac:** `Install.command` — першого разу **правий клік → Open → Open** (macOS питає один раз про
-     файли з інтернету). Або в Терміналі: `bash ~/Downloads/football-match-helper/Install.command`.
-   - **Windows:** подвійний клік `Install.bat`.
-3. Відкриється `chrome://extensions` і підказка. Там три кліки:
-   **Developer mode** (перемикач справа вгорі) → **Load unpacked** → вставити шлях
-   (Mac: Cmd+Shift+G, Cmd+V, Enter; Windows: Ctrl+V у поле адреси) → **Select**.
-   Шлях інсталятор уже скопіював.
-4. Порада: `chrome://settings/downloads` → вимкни «Ask where to save each file before downloading»,
-   інакше Chrome питатиме про кожен файл матчу.
+```bash
+curl -fsSL https://raw.githubusercontent.com/GITHUB_USER/aws-football-match-plugin/main/install.sh | bash
+```
 
-Розширення лежить у постійній папці (`~/Library/Application Support/FootballMatchHelper` або
-`%LOCALAPPDATA%\FootballMatchHelper`), тож zip після встановлення можна видалити.
+It downloads the latest version, puts it in a fixed folder, copies that path and opens
+`chrome://extensions`. Three clicks are left there (first time only): **Developer mode** (toggle,
+top right) → **Load unpacked** → Cmd+Shift+G, Cmd+V, Enter → **Select**. Chrome lets no program add
+an extension by itself, so these clicks are yours.
 
-**Оновлення:** розпакуй новий zip і знову запусти інсталятор — він замінить файли на місці; у
-`chrome://extensions` натисни ↻ на картці. Відкриті вкладки гри підхоплять нову версію самі.
+**Update: run the same command**, then press ↻ on the extension's card in `chrome://extensions`.
 
-## Що воно робить
+Tip: `chrome://settings/downloads` → turn off "Ask where to save each file before downloading",
+otherwise Chrome asks about every match file.
 
-**Запис матчу.** Відкриваєш переглядач матчу — запис іде сам (значок REC). Після фінального свистка в
-`Downloads/agentic-football-matches/` з'являються:
-- `match-<id>.json.gz` — увесь матч: м'яч, усі 10 гравців і їхні дії ~40 разів на секунду, коментарі;
-- `report-<id>.txt` — текст звіту порталу (з AI-оглядом);
-- `final-<id>.png` — скріншот рахунку з обома назвами (доказ результату для турніру).
-Перезавантаження сторінки посеред матчу запис не обриває. Відкривай переглядач **до старту** матчу.
+### Windows, or without Terminal
 
-**Панель у переглядачі** (на місці «Coach Live Feed»): суперник і його місце, вінрейт загалом і проти
-нас, наш рахунок з ним, пінг по позиціях, стан запису. Кнопка ▾ ховає панель, щоб бачити coach feed.
+Download the zip (Code → Download ZIP, or Releases), unzip it and run `Install.bat` (Windows) or
+`Install.command` (Mac: the first time right-click → Open). Then the same three clicks.
 
-**Список «Find match»**: біля кожної команди — місце, вінрейт і наш рахунок проти неї (працює й під час пошуку).
+The extension lives in a fixed folder (`~/Library/Application Support/AwsFootballMatchPlugin`, or
+`%LOCALAPPDATA%\AwsFootballMatchPlugin`), so the download can be deleted afterwards. Open portal tabs
+pick up a new version by themselves after ↻.
 
-**Вікно розширення** (клік по значку):
-- поточний матч: що записано, що збережено (запис / звіт / скріншот), попередження;
-- **вхідні виклики** з кнопкою «Прийняти» і відліком; після прийняття відкривається переглядач;
-- **Авто-START** (перемикач, вимкнено за замовчуванням): тисне START у переглядачі сам;
-- **Авто-прийняття викликів** (перемикач, лише для тренувального дня): вимикається о 23:59 і не працює
-  28–29.10 — на турнірі виклики приймають тільки вручну;
-- пінг агентів: середній і p99, за матч — наш і суперника;
-- «Підсумок дня» — копіює таблицю сьогоднішніх матчів; останні матчі з ✓/✗ по кожному файлу.
+## What it does
 
-**Сповіщення macOS**: новий виклик, кінець матчу (що збережено або чого бракує), запізнілий старт запису.
+**Match recording.** Open a match viewer and recording starts by itself (REC on the icon). After the
+final whistle `Downloads/agentic-football-matches/` gets:
+- `match-<id>.json.gz` — the whole match: ball, all 10 players and their actions ~40 times a second, commentary;
+- `report-<id>.txt` — the portal's match report (with the AI summary);
+- `final-<id>.png` — a screenshot of the final score with both team names (proof of the result).
+Reloading the page mid-match does not break the recording. Open the viewer **before kick-off**.
 
-Дані про таблицю й суперників плагін бере з порталу твоєю ж сесією (вкладка порталу має бути відкрита;
-див. «Дані порталу» у вікні). Наш рахунок з командою рахується по останніх ~100 матчах, які віддає
-портал, і далі накопичується.
+**Panel in the viewer** (in place of "Coach Live Feed"): the opponent and their place, win rate
+overall and against you, your record against them, ping per position, recording status. ▾ folds the
+panel so the coach feed shows.
 
-## Що не входить у цю збірку
+**Find match list**: next to every team, its place, win rate and your record against it (also while
+searching).
 
-Ця версія — без локального помічника: немає блоків «Емулятор» і «AWS-креди», імені тренера за версією
-агентів і старих результатів з робочої машини. Решта працює так само.
+**Extension popup** (click the icon):
+- the current match: what is recorded and saved (recording / report / screenshot), warnings;
+- **incoming challenges** with an Accept button and a countdown; the viewer opens after accepting;
+- **Auto-START** (switch, off by default): presses START in the viewer for you;
+- **Auto-accept challenges** (switch, workshop day only): turns itself off at 23:59 and never works on
+  28–29 Oct — in the tournament every challenge is accepted by hand;
+- agents' ping: average and p99, per match for both teams;
+- "Day summary" copies a table of today's matches; recent matches with ✓/✗ per file.
+
+**macOS notifications**: a new challenge, the end of a match (what was saved or what is missing), a
+late start of the recording.
+
+The table and opponents come from the portal with your own session (keep a portal tab open; see
+"Portal data" in the popup). The record against a team counts the ~100 latest matches the portal
+returns and keeps growing from there.

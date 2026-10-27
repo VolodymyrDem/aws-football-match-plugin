@@ -82,8 +82,8 @@ function parseTeams(text) {
 
 // ---- macOS notifications: end of a match (what was saved) and problems while recording.
 const SITE = "https://agentic-football.aws.dev";
-const title = h => h.home && h.away ? `${h.home} ${h.score ? h.score.join("—") : ""} ${h.away}` : `Матч ${h.id.slice(0, 8)}`;
-const missing = h => [!h.rec && "запису", !h.report && "звіту", !(h.shot || h.manualShot) && "скріншоту"].filter(Boolean);
+const title = h => h.home && h.away ? `${h.home} ${h.score ? h.score.join("—") : ""} ${h.away}` : `Match ${h.id.slice(0, 8)}`;
+const missing = h => [!h.rec && "recording", !h.report && "report", !(h.shot || h.manualShot) && "screenshot"].filter(Boolean);
 function notify(id, key, t, message) {
   try {
     chrome.notifications.create(`${key}:${id}`, { type: "basic", iconUrl: "icons/icon128.png", title: t, message, priority: 1 });
@@ -105,9 +105,9 @@ async function endCheck(id, final) {
 }
 function sendEnd(id, h, miss) {
   chrome.alarms.clear("check:" + id);
-  if (miss.length) notify(id, "end", `⚠ ${title(h)}`, `Бракує ${miss.join(", ")}. Клікни — відкриється звіт, і файли дозбережуться.`);
-  else notify(id, "end", title(h), "Збережено: запис ✓ · звіт ✓ · скріншот ✓" +
-    (h.report && h.report.full === false ? " (звіт поки без AI-огляду — дозбережеться)" : ""));
+  if (miss.length) notify(id, "end", `⚠ ${title(h)}`, `Missing: ${miss.join(", ")}. Click to open the report and the files get saved.`);
+  else notify(id, "end", title(h), "Saved: recording ✓ · report ✓ · screenshot ✓" +
+    (h.report && h.report.full === false ? " (report without the AI summary yet; saved again when it appears)" : ""));
 }
 chrome.alarms.onAlarm.addListener(a => { if (a.name.startsWith("check:")) endCheck(a.name.slice(6), true); });
 chrome.notifications.onClicked.addListener(nid => {
@@ -149,11 +149,11 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
       const stale = msg.lastWall && Date.now() - msg.lastWall > 8000 && msg.t < 118;
       if (h && late && msg.n > 0 && !h.notifiedLate) {
         updateHist(msg.id, x => { x.notifiedLate = 1; });
-        notify(msg.id, "late", `⚠ Запис почався з ${Math.round(msg.t0)}-ї секунди`, `${title(h)}: початок матчу не записано. Наступного разу відкривай переглядач до старту.`);
+        notify(msg.id, "late", `⚠ Recording started at second ${Math.round(msg.t0)}`, `${title(h)}: the start of the match is missing. Next time open the viewer before kick-off.`);
       }
       if (h && stale && Date.now() - msg.lastWall > 15000 && !h.notifiedStale) {
         updateHist(msg.id, x => { x.notifiedStale = 1; });
-        notify(msg.id, "stale", "⚠ Кадри матчу не надходять", `${title(h)}: ${Math.round((Date.now() - msg.lastWall) / 1000)} с без кадрів. Перезавантаж вкладку переглядача — запис продовжиться.`);
+        notify(msg.id, "stale", "⚠ No match frames", `${title(h)}: ${Math.round((Date.now() - msg.lastWall) / 1000)} s without frames. Reload the viewer tab; recording continues.`);
       }
       if (!msg.stopped) badge(tabId, stale ? "!" : "REC", late || stale ? ORANGE : RED);
     });
@@ -169,7 +169,7 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
           h.rec = { at: Date.now(), n: msg.n || (h.rec && h.rec.n) || h.n, dl, why: msg.why };
           chrome.alarms.create("check:" + msg.id, { delayInMinutes: 5 });   // report + screenshot by then
         }
-        else (h.err = h.err || []).push("запис: помилка збереження");
+        else (h.err = h.err || []).push("recording: could not save");
       })))
       .catch(() => { badge(tabId, "ERR", RED); reply({ ok: false }); });
     return true;
@@ -268,7 +268,7 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
 chrome.tabs.onRemoved.addListener(tabId => chrome.storage.session.remove("tab:" + tabId).catch(() => {}));
 
 // ---- AWS credentials: Workshop Studio gives short-lived keys. Every 15 min the native helper checks
-// the keys in the project's .env; when they no longer work (or on "Оновити зараз" in the popup), the
+// the keys in the project's .env; when they no longer work (or on "Refresh now" in the popup), the
 // dashboard opens in a background tab, its "Get AWS CLI credentials" panel is opened, the export block
 // is read and the tab closes. The helper checks the keys with AWS and only then writes .env.
 // The keys pass through memory only: never chrome.storage, never the console.
@@ -306,11 +306,11 @@ function refreshCreds(force) {
 async function doRefresh(force) {
   if (!force) {
     const c = await nativeCall({ cmd: "creds_check" });
-    if (c.missing) return credState({ ok: false, msg: "помічник не встановлений" });
-    if (c.works) return credState({ ok: true, msg: "ключі працюють", saved: c.saved });
-    if (c.kind === "network") return credState({ ok: false, msg: "AWS не відповідає — немає мережі?" });
+    if (c.missing) return credState({ ok: false, msg: "helper not installed" });
+    if (c.works) return credState({ ok: true, msg: "keys work", saved: c.saved });
+    if (c.kind === "network") return credState({ ok: false, msg: "AWS does not answer: no network?" });
   }
-  await credState({ busy: true, msg: "беру нові ключі з Workshop Studio…" });
+  await credState({ busy: true, msg: "taking new keys from Workshop Studio…" });
   let tab;
   try {
     tab = await chrome.tabs.create({ url: DASH, active: false });
@@ -322,16 +322,16 @@ async function doRefresh(force) {
     const [r] = await chrome.scripting.executeScript({ target: { tabId: tab.id }, func: grabCreds });
     const got = (r && r.result) || {};
     if (!got.text) {
-      const msg = got.login || got.error === "login" ? "увійди в Workshop Studio — потім «Оновити зараз»" : "не знайшов ключів на дашборді";
-      chrome.notifications.create("creds", { type: "basic", iconUrl: "icons/icon128.png", title: "AWS-креди не оновлено", message: msg });
+      const msg = got.login || got.error === "login" ? "sign in to Workshop Studio, then Refresh now" : "no keys found on the dashboard";
+      chrome.notifications.create("creds", { type: "basic", iconUrl: "icons/icon128.png", title: "AWS keys not refreshed", message: msg });
       return credState({ ok: false, msg });
     }
     const s = await nativeCall({ cmd: "creds_save", text: got.text });
     if (!s.ok) {
-      chrome.notifications.create("creds", { type: "basic", iconUrl: "icons/icon128.png", title: "AWS-креди не оновлено", message: s.error || "помилка" });
-      return credState({ ok: false, msg: s.missing ? "помічник не встановлений" : s.error });
+      chrome.notifications.create("creds", { type: "basic", iconUrl: "icons/icon128.png", title: "AWS keys not refreshed", message: s.error || "error" });
+      return credState({ ok: false, msg: s.missing ? "helper not installed" : s.error });
     }
-    return credState({ ok: true, msg: "нові ключі збережено в .env", saved: s.saved });
+    return credState({ ok: true, msg: "new keys saved to .env", saved: s.saved });
   } catch (e) {
     return credState({ ok: false, msg: String(e.message || e) });
   } finally {
@@ -402,7 +402,7 @@ chrome.alarms.onAlarm.addListener(a => { if (a.name === "coach") coachCheck().ca
 
 // ---- Incoming challenges (1.11). A portal tab reads them (bridge.js, the portal's own sign-in);
 // here they are kept for the popup (storage.session "invites"), each new one is announced once,
-// and an invite is accepted on your click: the popup's "Прийняти" or the notification's button.
+// and an invite is accepted on your click: the popup's "Accept" or the notification's button.
 // 1.13: an auto-accept switch for the workshop day only (storage.local autoAccept {on, until}):
 // off by default, it turns itself off at the end of the day it was switched on, and it never
 // works on the tournament days 28-29.10.2026 (OrgCrew: every challenge there is accepted by hand).
@@ -435,16 +435,16 @@ async function storeInvites(res) {
     if (auto) {
       const r = await acceptInvite(it.matchId);
       chrome.notifications.create("invauto:" + it.matchId, { type: "basic", iconUrl: "icons/icon128.png",
-        title: r && r.ok ? `Прийнято автоматично: ${it.from}` : `Не вдалося прийняти: ${it.from}`,
-        message: r && r.ok ? "Переглядач відкрито. Авто-прийняття вимкнеться саме о 23:59." : (r && r.why) || "помилка" });
+        title: r && r.ok ? `Accepted automatically: ${it.from}` : `Could not accept: ${it.from}`,
+        message: r && r.ok ? "Viewer opened. Auto-accept turns itself off at 23:59." : (r && r.why) || "error" });
       if (r && r.ok) continue;
     }
-    const until = it.expires ? " · діє до " + new Date(it.expires).toLocaleTimeString("uk-UA") : "";
+    const until = it.expires ? " · until " + new Date(it.expires).toLocaleTimeString("en-GB") : "";
     try {
       chrome.notifications.create("inv:" + it.matchId, {
         type: "basic", iconUrl: "icons/icon128.png", priority: 2, requireInteraction: true,
-        title: `Виклик від ${it.from}`, message: `Прийняти матч?${until}\nПісля прийняття відкриється переглядач.`,
-        buttons: [{ title: "Прийняти" }] });
+        title: `Challenge from ${it.from}`, message: `Accept the match?${until}\nThe viewer opens after you accept.`,
+        buttons: [{ title: "Accept" }] });
     } catch (e) {}
   }
   for (const id of invSeen) if (!res.items.some(x => x.matchId === id)) chrome.notifications.clear("inv:" + id);
@@ -465,19 +465,19 @@ async function pollInvites() {
 async function acceptInvite(matchId) {
   const inv = (await chrome.storage.session.get("invites")).invites || {};
   const it = (inv.items || []).find(x => x.matchId === matchId);
-  if (!it || !inv.eventId) return { ok: false, why: "виклику вже немає" };
+  if (!it || !inv.eventId) return { ok: false, why: "the challenge is gone" };
   const tabs = await portalTabs();
   const t = tabs.find(x => !/\/viewer/.test(x.url || "")) || tabs[0];
-  if (!t) return { ok: false, why: "немає вкладки порталу" };
+  if (!t) return { ok: false, why: "no portal tab" };
   const res = await new Promise(r => chrome.tabs.sendMessage(t.id, { type: "invite-accept", eventId: inv.eventId, matchId },
-    x => r(chrome.runtime.lastError ? { ok: false, why: "вкладка порталу не відповіла" } : x)));
+    x => r(chrome.runtime.lastError ? { ok: false, why: "the portal tab did not answer" } : x)));
   if (res && res.ok) {
     chrome.notifications.clear("inv:" + matchId);
     await chrome.storage.session.set({ invites: { ...inv, items: (inv.items || []).filter(x => x.matchId !== matchId) } });
     // viewer in a visible tab: the recording starts at once and auto-START (if on) can click
     await chrome.tabs.create({ url: `${SITE}/v2/player/matches/${res.matchId || matchId}/viewer`, active: true });
   }
-  return res || { ok: false, why: "немає відповіді" };
+  return res || { ok: false, why: "no answer" };
 }
 chrome.runtime.onMessage.addListener((msg, sender, reply) => {
   if (!msg) return;
@@ -490,7 +490,7 @@ chrome.notifications.onButtonClicked.addListener((nid, idx) => {
   if (!nid.startsWith("inv:") || idx !== 0) return;
   acceptInvite(nid.slice(4)).then(r => {
     if (!r.ok) chrome.notifications.create("invfail:" + Date.now(), { type: "basic", iconUrl: "icons/icon128.png",
-      title: "Не вдалося прийняти виклик", message: r.why || "помилка" });
+      title: "Could not accept the challenge", message: r.why || "error" });
   });
 });
 chrome.notifications.onClicked.addListener(nid => {
