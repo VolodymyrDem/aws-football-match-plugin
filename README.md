@@ -10,9 +10,9 @@
 ![Install](https://img.shields.io/badge/install-one%20command-4ade80)
 ![Privacy](https://img.shields.io/badge/data-stays%20on%20your%20Mac-94a3b8)
 
-<img src="docs/viewer-panel.jpg" alt="The match viewer with the plugin's scouting panel: the opponent's place, win rates, our record against them, ping per position and the plugin's state" width="100%">
+<img src="docs/viewer-panel.jpg" alt="The live match viewer with the plugin: a strip under the game with shots, xG, possession, a shot map and the agents table; on the right the opponent's place, win rates, form, our record and ping" width="100%">
 
-<sub>The live match viewer. On the right, in place of the empty Coach Live Feed: everything you want to know about the opponent.</sub>
+<sub>The live match viewer. Under the game: this match in numbers, bars and a shot map, plus your agents. On the right, in place of the empty Coach Live Feed: everything about the opponent.</sub>
 
 </div>
 
@@ -78,6 +78,7 @@ at the top — press it and the plugin installs the new version and reloads itse
 
 Open **Find opponent** and every team already tells you how it stands:
 
+- `⚑ GROUP B` — the team is in your tournament group ([load your group](#-your-tournament-group))
 - `#24` — place in the tournament table
 - `43%` — their win rate overall (red from 60%, yellow from 45%)
 - `vs us 3-0-3 (50%)` — their wins-draws-losses against **you**, and how often they beat you
@@ -92,16 +93,31 @@ Works while you type in the search box too.
 </tr>
 </table>
 
-### The match panel
+### The match, live — under the game
 
-During a match the viewer's right column shows the opponent's **place**, **win rate overall** and
-**against you**, **your record and goals**, the **last match**, **ping per position** for both teams and
-what the plugin is doing (recording, Auto-START, Auto-accept). An **agents live** table shows, per position, how
-much of the last 30 s each player spent on an agent command, for both teams, and how long your player has been
-without one: a silent or slow agent shows at once. Above it, **this match live**: shots, an xG guide,
-possession and how much the ball sits in each side's attacking third. Under the win rates, the opponent's
-**form**: their last 5 results and whether they are rising or falling over the last 24 h. Press **▾** to fold it into a strip and
-see the Coach Live Feed again. It appears whether you started the match yourself or accepted a challenge.
+A wide strip inside the game's frame, from kick-off to the final whistle:
+
+- **score and clock**, then **shots**, an **xG guide**, **possession** and **ball in the attacking third** — numbers
+  plus a bar for each (cyan = you, orange = them);
+- a **shot map**: every shot where it was taken, size = xG, filled = goal; you attack to the right;
+- **agents live**: per position, how much of the last 30 s each player spent on an agent command (yours and
+  theirs) and how long your player has been without one — a silent agent shows at once.
+
+Before kick-off it simply says *waiting*. **→ side panel** moves it into the right column if you prefer.
+
+### The opponent panel
+
+The viewer's right column (in place of the empty Coach Live Feed): the opponent's **place**, **win rate overall**
+and **against you**, **your record and goals**, their **form** (last 5 results, rising or falling over 24 h),
+the **last match** between you, your agents' **ping** per position and what the plugin is doing. Sections fold
+one by one; **▾** folds the whole panel to show the Coach Live Feed. It appears whether you started the match
+yourself or accepted a challenge.
+
+### At the final whistle
+
+The plugin's icon shows the live score (green ahead, red behind) while you play. At full time a notification
+sums it up — *Won 3:2 vs Feyenoord · xG 2.1:1.3 · shots 11:6 · possession 54%* — and names any agent that went
+silent for 20+ s; the popup's **Last match** card shows the same with bars.
 
 ---
 
@@ -144,25 +160,16 @@ Your own team in the list does no harm. The group stays in your Chrome only.
 
 <table>
 <tr>
-<td width="44%"><img src="docs/popup.png" alt="The extension popup: an incoming challenge with Accept, the match being recorded, switches and agents' ping"></td>
-<td width="56%" valign="top">
+<img src="docs/popup.png" alt="The extension popup's three tabs: Match (recording, last match with bars, ping), Form (our form, recent matches) and Settings (switches, my group as a table)" width="100%">
 
-Click the extension's icon:
+Click the extension's icon. On top of every tab: **incoming challenges** (who is calling, their numbers, a
+countdown, **Accept** and **🔇** to silence the chime) and **Update** next to the version.
 
-- **Incoming challenges** — who is calling, their numbers, a countdown and **Accept**
-- **This match** — recording, report and score screenshot, each ✓ when saved, plus warnings
-  (late start, silent socket, reloads)
-- **Stop & save**, **Screenshot**, **Folder**, **Day summary** (copies today's matches as a table, with your W-D-L)
-- **Auto-START**, **Auto-accept**, **Chime on challenge** and **Record in background** switches
-- **Our form** — W-D-L, win rate and goals per block of 10 matches, real opponents only
-- **Update** — at the top, next to the version: installs a new version in one click
-- **🔇** on a ringing challenge — silence it (new challenges still ring)
-- **Agents' ping** — this match for both teams, plus the portal's recent average and p99
-- **Recent matches** with ✓/✗ per file — click one to open its report and fill in what is missing
-
-</td>
-</tr>
-</table>
+| Tab | What's there |
+|---|---|
+| **Match** | this match: recording, report and score screenshot, each ✓ when saved, plus warnings · **Last match**: result, shots, xG, possession, silent agents · **Stop & save**, **Screenshot**, **Folder**, **Day summary** · your agents' **ping** |
+| **Form** | **Our form**: W-D-L, win rate and goals per block of 10 matches (real opponents only) · **Recent matches** with ✓/✗ per file — click one to open its report |
+| **⚙ Settings** | the switches (Auto-START, Auto-accept, Chime, Record in background, Save portal data) · **My group** with its table |
 
 ---
 
@@ -195,6 +202,16 @@ accepted by itself, the viewer opens and you get a notification. Built-in safegu
 - it **cannot be switched on and never accepts on the tournament days (28–29 Oct)** — the tournament rules
   say every challenge is accepted by hand there; the check runs before every single accept;
 - it needs an open portal tab (agentic-football.aws.dev), which it checks every 3 s.
+
+**🛎️ Chime on challenge** (on). Three notes when a challenge comes in, again every 12 s while it waits; the
+portal tab's title flashes too. **🔇** on the challenge (popup or notification) silences that one.
+
+**🎥 Record in background** (on). A match of yours that no tab shows — accepted in the portal's own banner,
+started from another device — gets its viewer in a background tab, so it is recorded; the tab closes itself after
+the save.
+
+**💾 Save portal data** (off). Writes the portal's table and your matches to `portal.json` in the matches folder,
+for your own scripts. Most people don't need it.
 
 ---
 
