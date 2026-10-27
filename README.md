@@ -10,15 +10,45 @@
 ![Install](https://img.shields.io/badge/install-one%20command-4ade80)
 ![Privacy](https://img.shields.io/badge/data-stays%20on%20your%20Mac-94a3b8)
 
-<img src="docs/viewer-panel.jpg" alt="The live match viewer with the plugin: a strip under the game with shots, xG, possession, a shot map and the agents table; on the right the opponent's place, win rates, form, our record and ping" width="100%">
-
-<sub>A real match. Under the game: this match in numbers, bars and a shot map, plus your agents. On the right, in place of the empty Coach Live Feed: everything about the opponent.</sub>
+<img src="docs/social-preview.png" alt="AWS Football Match Plugin: win chance and odds, live xG, shots, possession and a shot map, challenge alerts and group marks, every match recorded" width="100%">
 
 </div>
 
 ---
 
 <p align="center"><b>⭐ If it helps your team, give it a star — it helps other teams find it.</b></p>
+
+## 👀 The same match, without and with the plugin
+
+<table>
+<tr>
+<th width="50%">Without</th>
+<th width="50%">With the plugin</th>
+</tr>
+<tr>
+<td><img src="docs/without-plugin.jpg" alt="The match viewer without the plugin: the game, an empty frame under it and an empty Coach Live Feed card"></td>
+<td><img src="docs/viewer-panel.jpg" alt="The same match with the plugin: under the game shots, xG, possession, a shot map and the agents; on the right the opponent panel"></td>
+</tr>
+<tr>
+<td valign="top">
+
+- the game picture
+- an empty frame under it
+- *Coach Live Feed* waiting for prompts
+
+</td>
+<td valign="top">
+
+- **under the game:** score and clock, shots, xG, possession, attacking third — numbers and bars — a shot map
+  and your agents live
+- **on the right:** win chance and odds, the opponent's place, win rates, their last 5, your record, ping
+- the live score on the plugin's icon, a summary at the final whistle, the match saved to a file
+
+</td>
+</tr>
+</table>
+
+---
 
 ## 🚀 Install in one minute
 
