@@ -1,11 +1,11 @@
 #!/bin/bash
 # AWS Football Match Plugin — install or update with one command (macOS / Linux):
-#   curl -fsSL https://raw.githubusercontent.com/GITHUB_USER/aws-football-match-plugin/main/install.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/shusachenko/aws-football-match-plugin/main/install.sh | bash
 # Downloads the newest extension from GitHub (the main branch), puts it in a fixed folder, copies
 # that path and opens Chrome's extensions page. Chrome itself lets no program add an extension, so
 # three clicks are left there (Developer mode, Load unpacked, paste the path) — only the first time.
 set -euo pipefail
-REPO="${FMH_REPO:-GITHUB_USER/aws-football-match-plugin}"
+REPO="${FMH_REPO:-shusachenko/aws-football-match-plugin}"
 case "$(uname -s)" in
   Darwin) DEST="$HOME/Library/Application Support/AwsFootballMatchPlugin" ;;
   *)      DEST="${XDG_DATA_HOME:-$HOME/.local/share}/AwsFootballMatchPlugin" ;;

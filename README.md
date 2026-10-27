@@ -9,7 +9,7 @@ agentic-football.aws.dev and sends nothing anywhere: files go to your Downloads 
 Paste into Terminal:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/GITHUB_USER/aws-football-match-plugin/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/shusachenko/aws-football-match-plugin/main/install.sh | bash
 ```
 
 It downloads the latest version, puts it in a fixed folder, copies that path and opens
