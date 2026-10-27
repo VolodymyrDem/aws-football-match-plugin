@@ -322,6 +322,44 @@
     }
     return out;
   };
+  // Our matches being played now (1.28, background recording): in_progress and started recently
+  // (the portal leaves some old ones in_progress for hours).
+  const liveNow = async () => {
+    let token = null;
+    try { token = localStorage.getItem("world_cup_team_token"); } catch (e) {}
+    if (!token) return { ok: false, why: "signed out" };
+    const H = { headers: { Authorization: "Bearer " + token } };
+    if (!myTeam || Date.now() - myTeamAt > 10 * 60e3) {
+      const r = await fetch(API + "/teams/mine", H);
+      if (!r.ok) return { ok: false, why: "teams/mine " + r.status };
+      myTeam = ((await r.json()).items || [])[0] || null; myTeamAt = Date.now();
+    }
+    if (!myTeam) return { ok: false, why: "no team" };
+    const r = await fetch(`${API}/matches?team_id=${encodeURIComponent(myTeam.team_id)}&limit=5`, H);
+    if (!r.ok) return { ok: false, why: "matches " + r.status };
+    const items = ((await r.json()).items || []).filter(m => m.status === "in_progress"
+      && Date.now() - Date.parse(m.created_at) < ((m.match_duration_seconds || 120) + (m.auto_start_delay_seconds || 0) + 240) * 1000)
+      .map(m => ({ id: m.match_id, created: Date.parse(m.created_at) || 0, opp: m.home_team_id === myTeam.team_id ? m.away_team_name : m.home_team_name }));
+    return { ok: true, items };
+  };
+  // An opponent's form (1.28): their own last matches on the portal (/matches?team_id=<them>).
+  const oppFormNow = async oppId => {
+    let token = null;
+    try { token = localStorage.getItem("world_cup_team_token"); } catch (e) {}
+    if (!token) return { ok: false, why: "signed out" };
+    const r = await fetch(`${API}/matches?team_id=${encodeURIComponent(oppId)}&limit=100`, { headers: { Authorization: "Bearer " + token } });
+    if (!r.ok) return { ok: false, why: "matches " + r.status };
+    let items = ((await r.json()).items || []).filter(m => m.status === "completed" && m.result);
+    if (items.filter(m => !m.is_practice).length >= 5) items = items.filter(m => !m.is_practice);   // real teams, not the sample bots
+    const ms = items
+      .map(m => { const h = m.home_team_id === oppId, f = h ? m.result.home_score : m.result.away_score, a = h ? m.result.away_score : m.result.home_score;
+        return { at: Date.parse(m.completed_at || m.created_at) || 0, f, a, r: f > a ? "W" : f < a ? "L" : "D",
+                 t: `${f}:${a} vs ${h ? m.away_team_name : m.home_team_name}` }; })
+      .sort((x, y) => y.at - x.at);
+    const sum = list => ({ n: list.length, wr: list.length ? Math.round(100 * list.filter(x => x.r === "W").length / list.length) : 0,
+      gf: list.length ? (list.reduce((s, x) => s + x.f, 0) / list.length).toFixed(1) : "0", ga: list.length ? (list.reduce((s, x) => s + x.a, 0) / list.length).toFixed(1) : "0" });
+    return { ok: true, oppId, at: Date.now(), last: ms.slice(0, 5), day: sum(ms.filter(x => Date.now() - x.at < 864e5)), all: sum(ms) };
+  };
   const acceptInvite = async (eventId, matchId) => {
     let token = null;
     try { token = localStorage.getItem("world_cup_team_token"); } catch (e) {}
@@ -338,8 +376,7 @@
     return { ok: true, matchId: mid };
   };
   if (location.hostname === "agentic-football.aws.dev") {
-    // a visible portal tab checks every 10 s, and every 3 s in any portal tab while auto-accept is
-    // on (1.17: an invite lasts ~2 min and the background's own check runs only every 30 s);
+    // (1.17: an invite lasts ~2 min and the background's own check runs only every 30 s);
     // tabs share one check via localStorage
     let aaOn = false;
     const loadAA = async () => {
@@ -347,12 +384,32 @@
     };
     loadAA();
     try { chrome.storage.onChanged.addListener((ch, area) => { if (area === "local" && ch.autoAccept) loadAA(); }); } catch (e) {}
-    setInterval(async () => {
-      if (document.visibilityState !== "visible" && !aaOn) return;
-      try { if (Date.now() - (+localStorage.getItem("__inv_at") || 0) < (aaOn ? 2500 : 8000)) return; localStorage.setItem("__inv_at", String(Date.now())); } catch (e) {}
-      const res = await invitesNow().catch(e => ({ ok: false, why: String(e && e.message || e) }));
-      try { chrome.runtime.sendMessage({ type: "invites", res }); } catch (e) {}
+    // 1.28: every portal tab, hidden too, so a challenge is seen within ~5 s (2.5 s with auto-accept);
+    // while one waits, every portal tab that is not a match viewer flashes its title.
+    let baseTitle = null, flash = 0;
+    const flashTitle = () => {
+      let w = null;
+      try { w = JSON.parse(localStorage.getItem("__inv_wait") || "null"); } catch (e) {}
+      const on = w && w.n > 0 && Date.now() - w.at < 20000 && !/\/viewer/.test(location.pathname);
+      if (on) {
+        if (baseTitle === null) baseTitle = document.title;
+        document.title = ++flash % 2 ? `🔔 Challenge: ${w.from}` : `⚽ Accept? (${w.n})`;
+      } else if (baseTitle !== null) { document.title = baseTitle; baseTitle = null; }
+    };
+    setInterval(flashTitle, 1000);
+    // background recording (1.29): every ~10 s one portal tab (not a viewer) wakes the background check
+    setInterval(() => {
+      if (!alive() || /\/viewer|\/report/.test(location.pathname)) return;
+      try { if (Date.now() - (+localStorage.getItem("__bg_at") || 0) < 9000) return; localStorage.setItem("__bg_at", String(Date.now())); } catch (e) {}
+      try { chrome.runtime.sendMessage({ type: "bg-live" }); } catch (e) {}
     }, 3000);
+    setInterval(async () => {
+      if (!alive()) return;
+      try { if (Date.now() - (+localStorage.getItem("__inv_at") || 0) < (aaOn ? 2500 : 4500)) return; localStorage.setItem("__inv_at", String(Date.now())); } catch (e) {}
+      const res = await invitesNow().catch(e => ({ ok: false, why: String(e && e.message || e) }));
+      try { if (res && res.ok) localStorage.setItem("__inv_wait", JSON.stringify({ n: res.items.length, from: (res.items[0] || {}).from || "", at: Date.now() })); } catch (e) {}
+      try { chrome.runtime.sendMessage({ type: "invites", res }); } catch (e) {}
+    }, 2500);
   }
 
   if (location.hostname === "agentic-football.aws.dev") {
@@ -374,7 +431,7 @@
     const POSN = ["GK", "DEF", "MID", "FWD1", "FWD2"];
     const E = x => String(x ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
     const nn = n => String(n || "").replace(/\s*\((\u043b\u044e\u0434\u0438\u043d\u0430|human)\)/i, "").trim().toLowerCase();
-    let H = null, PING = null, LIVE = null, folded = false, host = null, box = null;
+    let H = null, PING = null, LIVE = null, FORM = null, folded = false, host = null, box = null;
     try { folded = localStorage.getItem("__drk_panel_folded") === "1"; } catch (e) {}
     const css = `
       #drk-panel{box-sizing:border-box;padding:14px 16px;background:#14151f;border:2px solid #22d3ee;border-radius:6px;
@@ -430,6 +487,43 @@
         <table><tr><th></th><th title="share of the last 30 s our player spent on an agent command">ctl</th><th title="seconds our player has been without an agent command (0 = under one now)">off</th><th title="share of the last 30 s their player spent on an agent command">them</th>${tr ? `<th title="our agent's calls in the last 60 s (TRACE)">calls</th><th title="longest pause between our agent's calls, last 60 s">pause</th>` : ""}</tr>${rows}</table>
         <div class="m" style="font-size:11px;margin-top:4px">ctl / them = time under an agent command, last 30 s; off = seconds without one now (game stream)${note ? " · " + note : ""}</div></div>`;
     };
+    // 1.28: this match live, from the game stream (recorder.js "st"): shots, an xG guide from shot
+    // distance, possession and time the ball spends in each side's attacking third.
+    const statSec = () => {
+      const s = lastStatus && lastStatus.st;
+      const pmh = PING && PING.match && PING.match.id === mid ? PING.match : null;
+      if (!s || !s.sh) return "";
+      const us = pmh && typeof pmh.home === "boolean" ? (pmh.home ? 0 : 1) : 0, them = 1 - us;
+      const named = !!(pmh && typeof pmh.home === "boolean");
+      const cmp = (a, b, f = v => v) => `<td class="${a > b ? "g" : a < b ? "r" : ""}">${f(a)}</td><td>${f(b)}</td>`;
+      const pos = s.pos ? cmp(s.pos[us], s.pos[them], v => v + "%") : "<td>—</td><td>—</td>";
+      const th = s.third ? cmp(s.third[us], s.third[them], v => v + "%") : "<td>—</td><td>—</td>";
+      const last = (s.last || []).slice(-3).reverse().map(x => `${Math.round(x[0])}s ${x[1] === us ? (named ? "us" : "home") : (named ? "them" : "away")} ${POSN[x[2]] || x[2]} ${x[3]}m`).join(" · ");
+      return `<div class="sec"><div class="lbl">this match live</div>
+        <table><tr><th></th><th>${named ? "us" : "home"}</th><th>${named ? "them" : "away"}</th></tr>
+          <tr><td>Shots</td>${cmp(s.sh[us], s.sh[them])}</tr>
+          <tr><td title="sum over shots of the share of shots from that distance that went in (280 recorded matches)">xG guide</td>${cmp(s.xg[us], s.xg[them], v => v.toFixed(2))}</tr>
+          <tr><td>Possession</td>${pos}</tr>
+          <tr><td title="share of play time the ball is in this side's attacking third">Ball in attack third</td>${th}</tr></table>
+        ${last ? `<div class="m" style="font-size:11px;margin-top:4px">last shots: ${E(last)}</div>` : ""}</div>`;
+    };
+    // 1.28: the opponent's form — their last 5 results (newest first) and win rate over the last 24 h
+    // against their overall, from their own match list on the portal.
+    const formHtml = () => {
+      if (!FORM || !FORM.ok || !FORM.last.length) return "";
+      const dot = r => `<b class="${r === "W" ? "r" : r === "L" ? "g" : "o"}" title="${E(r.t || "")}">${r}</b>`;
+      const seq = FORM.last.map(x => `<span title="${E(x.t)}">${dot(x.r)}</span>`).join(" ");
+      const day = FORM.day.n ? `${FORM.day.wr}% <span class="m">(${FORM.day.n} in 24 h)</span>` : `<span class="m">no games in 24 h</span>`;
+      const arrow = FORM.day.n >= 3 && FORM.all.n ? (FORM.day.wr > FORM.all.wr + 10 ? ` <span class="r">▲ rising</span>` : FORM.day.wr < FORM.all.wr - 10 ? ` <span class="g">▼ falling</span>` : "") : "";
+      return `<div class="kv"><span title="their last 5 results, newest first (red = they won)">Form</span><span>${seq}</span></div>
+        <div class="kv"><span>Win rate, last 24 h</span><span>${day}${arrow}</span></div>
+        <div class="kv"><span>Goals per game</span><span>${FORM.all.gf}:${FORM.all.ga} <span class="m">(last ${FORM.all.n})</span></span></div>`;
+    };
+    const loadForm = () => {
+      const pm = PING && PING.match && PING.match.id === mid ? PING.match : null;
+      if (!pm || !pm.oppId || (FORM && FORM.oppId === pm.oppId && Date.now() - FORM.at < 5 * 60e3)) return;
+      oppFormNow(pm.oppId).then(r => { FORM = r; render(); }).catch(() => {});
+    };
     const render = () => {
       if (!box || !alive()) return;
       layout();
@@ -462,10 +556,12 @@
           <div class="sec"><div class="kv"><span>Win rate overall</span><span>${overall}</span></div>
             <div class="kv"><span>Win rate vs us</span><span>${vsUs}</span></div>
             <div class="kv"><span>Our record vs them</span><span>${ms.length ? `<b class="${w > l ? "g" : w < l ? "r" : "o"}">${w}-${d}-${l}</b> <span class="m">· goals ${gf}:${ga}</span>` : "—"}</span></div>
+            ${formHtml()}
             ${last ? `<div class="kv"><span>Last match</span><span>${last.us}:${last.them}${last.version ? ` <span class="m">(${E(last.version)})</span>` : ""}</span></div>` : ""}</div>
           <div class="sec"><div class="lbl">our agents' ping, ms</div>
             <table><tr><th></th>${hasMatch ? "<th>match</th><th>them</th>" : ""}<th title="average latency of our agents, portal figures">avg</th><th title="1 call in 100 is slower than this">p99</th></tr>${rows}</table>
             <div class="m" style="font-size:11px;margin-top:4px">avg / p99: portal, recent hours${obsAt ? ` (${obsAt})` : ""}${!hasMatch && pm && pm.status !== "completed" ? " · this match's figures come after full time" : ""}</div></div>
+          ${statSec()}
           ${liveSec()}
           <div class="sec"><div class="lbl">plugin</div><div>${recLine}</div>
             <div>Auto-START: ${as}</div><div>Auto-accept: ${aa ? `<span class="g">on</span>` : `<span class="m">off</span>`}</div></div>
@@ -509,7 +605,7 @@
     const mount = () => {
       if (!alive()) { unmount(); return; }
       const m = viewerMid();
-      if (m !== mid) { unmount(); mid = m; PING = null; LIVE = null; if (m) { loadH(); loadPing(); } }
+      if (m !== mid) { unmount(); mid = m; PING = null; LIVE = null; FORM = null; if (m) { loadH(); loadPing(); } }
       if (!m) return;
       if (box && box.isConnected) return;
       const card = findCard();
@@ -529,7 +625,7 @@
       layout(); render();
     };
     const loadH = () => { try { chrome.runtime.sendMessage({ type: "panel-h2h" }, r => { if (r && r.ok) { H = r; render(); } }); } catch (e) {} };
-    const loadPing = () => { if (mid) pingNow(mid).then(r => { if (r && r.ok) { PING = r; render(); } }).catch(() => {}); };
+    const loadPing = () => { if (mid) pingNow(mid).then(r => { if (r && r.ok) { PING = r; render(); loadForm(); } }).catch(() => {}); };
     const loadLive = () => {
       if (!mid || !alive() || document.visibilityState !== "visible") return;
       if (lastStatus && lastStatus.lastWall && Date.now() - lastStatus.lastWall > 60000) return;   // match over
@@ -627,6 +723,10 @@
   chrome.runtime.onMessage.addListener((msg, _sender, reply) => {
     if (msg && msg.type === "ping-now") {
       pingNow(msg.matchId).catch(e => ({ ok: false, why: String(e && e.message || e) })).then(reply);
+      return true;
+    }
+    if (msg && msg.type === "live-now") {
+      liveNow().catch(e => ({ ok: false, why: String(e && e.message || e) })).then(reply);
       return true;
     }
     if (msg && msg.type === "invites-now") {

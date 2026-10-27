@@ -17,6 +17,16 @@ UPDATE=0
 mkdir -p "$DEST"
 rsync -a --delete "$SRC/" "$DEST/"
 VER="$(sed -n 's/.*"version": *"\([^"]*\)".*/\1/p' "$DEST/manifest.json" | head -1)"
+# 1.33: the one-click updater (see install.sh), registered for this plugin's fixed ID
+if [ -f "$HERE/updater.pl" ]; then
+  mkdir -p "$DEST-updater"
+  sed "s#@REPO@#shusachenko/aws-football-match-plugin#g; s#@DEST@#$DEST#g" "$HERE/updater.pl" > "$DEST-updater/updater.pl" && chmod +x "$DEST-updater/updater.pl"
+  for H in "$HOME/Library/Application Support/Google/Chrome/NativeMessagingHosts" "$HOME/Library/Application Support/Chromium/NativeMessagingHosts"; do
+    [ -d "$(dirname "$H")" ] || continue
+    mkdir -p "$H"
+    printf '{"name": "com.awsfootball.updater", "description": "AWS Football Match Plugin updater", "path": "%s", "type": "stdio", "allowed_origins": ["chrome-extension://cmliiifpnbhojabdafknaipjemeakdak/"]}\n' "$DEST-updater/updater.pl" > "$H/com.awsfootball.updater.json"
+  done
+fi
 printf '%s' "$DEST" | pbcopy
 open -a "Google Chrome" "chrome://extensions/" 2>/dev/null || open "https://www.google.com/chrome/"
 if [ "$UPDATE" = 1 ]; then

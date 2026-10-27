@@ -23,6 +23,9 @@
            padding: 12px 14px 8px; }
   header b { font-size: 14px; }
   header span { color: var(--muted); font-size: 11px; }
+  header button.upd { font: 600 11px inherit; padding: 2px 8px; border-radius: 10px; border: 1px solid var(--green); color: var(--green); background: none; cursor: pointer; margin-right: 6px; }
+  header button.upd.new { background: var(--green); color: #0b0c10; }
+  #updNote code { user-select: all; font-size: 10px; word-break: break-all; }
   .card { margin: 0 10px; padding: 12px; background: var(--card); border-radius: 10px; }
   .pill { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; font-size: 12px; }
   .dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
@@ -85,7 +88,8 @@
 </style>
 </head>
 <body>
-  <header><b><img src="icons/icon32.png" alt="" width="16" height="16" style="vertical-align:-2px;margin-right:6px">AWS Football Match Plugin</b><span id="ver"></span></header>
+  <header><b><img src="icons/icon32.png" alt="" width="16" height="16" style="vertical-align:-2px;margin-right:6px">AWS Football Match Plugin</b><span><button id="upd" class="upd" hidden></button> <span id="ver"></span></span></header>
+  <div id="updNote" class="hint" hidden></div>
   <div id="invites"></div>
   <div class="card" id="current"></div>
   <div class="buttons">
@@ -102,7 +106,21 @@
     <input type="checkbox" id="autoAccept"><span class="knob"></span>
     <span>Auto-accept challenges <span id="aaInfo" class="muted"></span></span>
   </label>
+  <label class="switch" title="A chime when a challenge comes in, again every 12 s until it is accepted or gone; the portal tab's title flashes too.">
+    <input type="checkbox" id="inviteSound"><span class="knob"></span>
+    <span>Chime on challenge <span id="soundInfo" class="muted"></span></span>
+  </label>
+  <label class="switch" title="A match of ours on with no viewer open (accepted in the portal, started elsewhere): its viewer opens in a background tab to record it, and closes after the save.">
+    <input type="checkbox" id="bgRec"><span class="knob"></span>
+    <span>Record in background <span id="bgInfo" class="muted"></span></span>
+  </label>
+  <label class="switch" title="portal.json (our team, the whole table, our matches) in Downloads/agentic-football-matches, for the emulator and scripts. With the local helper it is written directly, nothing shows in Chrome's downloads.">
+    <input type="checkbox" id="portalSave"><span class="knob"></span>
+    <span>Save portal data <span id="psInfo" class="muted"></span></span>
+  </label>
   <div class="toast" id="toast"></div>
+  <h2>Our form</h2>
+  <div class="card" id="form"><div class="meta">…</div></div>
   <h2>Agents' ping</h2>
   <div class="card" id="ping"><div class="meta">…</div></div>
   <h2>Emulator</h2>

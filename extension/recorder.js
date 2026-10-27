@@ -32,7 +32,9 @@
   // Extra fields copied from every frame into `xrows` = [tick, ...XG values, then XP values
   // per player in frame order]. Empty until map_fields.py tells which raw paths hold
   // stamina / sprint / velocity / server time (e.g. XP = ["3.0", "4"], XG = ["7"]).
-  const XP = [], XG = [];
+  // 1.28: mapped with map_fields.py on two matches (|r| ≥ 0.97 against TRACE): 5 = stamina,
+  // 13 = isSprinting, 3.0 / 3.1 = velocity x / y (≈ 8.5 × raw = TRACE vx / vy).
+  const XP = ["5", "13", "3.0", "3.1"], XG = [];
   let rows = [];
   let comm = [];
   let matchId = null;
@@ -46,7 +48,7 @@
   const fresh = () => {
     full = []; fullChars = 0; ring = []; after = 0; afterFlag = 1; nFrames = 0; prevScore = null; prevAct = {};
     other = {}; sent = {}; events = []; xrows = [];
-    meta = { ext: "1.12", page: location.pathname, opened: [], closed: [], header: "" };
+    meta = { ext: "1.28", page: location.pathname, opened: [], closed: [], header: "" };
 
   };
   fresh();
@@ -166,6 +168,7 @@
         for (const pl of g[6] || []) row.push(pl[0], pl[1], R(pl[2][0]), R(pl[2][1]), code(String(pl[8])));
         rows.push(row);
         ctlAdd(g);
+        statAdd(row);
         if (rows.length % 200 === 0) persist();        // ~5 s of play, even in a throttled tab
         if (rows.length % 80 === 0) postStatus();
       } catch (e) { g = null; /* not a game-state frame */ }
@@ -307,6 +310,47 @@
     return out;
   };
 
+  // ---- Live match stats (1.28) from the rows: shots (an agent or the game turning a player to
+  // ShootAtGoal / CoachShoot), possession (frames each team holds the ball), the share of play
+  // the ball spends in each team's attacking third, and an xG guide from shot distance (table
+  // fitted on 280 recorded matches, 27.10: share of shots followed by a goal within 4 s).
+  const XG_BY_M = [0.58, 0.28, 0.28, 0.22, 0.2, 0.2, 0.13, 0.05, 0.05, 0.05];
+  const SHOOT = new Set(["ShootAtGoal", "CoachShoot"]);
+  let st = null;
+  const statReset = () => { st = { dir: 0, sh: [0, 0], xg: [0, 0], hold: [0, 0], third: [0, 0], all: 0, prev: {}, at: {}, last: [] }; };
+  statReset();
+  const statAdd = r => {
+    if (!st.dir) {   // home attacks +x when it kicks off on the -x half
+      let s = 0, n = 0;
+      for (let i = 15; i < r.length; i += 5) if (r[i + 1] === 0) { s += r[i + 2]; n++; }
+      if (!n) return;
+      st.dir = s / n < 0 ? 1 : -1;
+    }
+    st.all++;
+    if (r[14] === 0 || r[14] === 1) st.hold[r[14]]++;
+    const bx = r[6] * st.dir;   // + = towards the away goal
+    if (bx > 6.5 / 3) st.third[0]++; else if (bx < -6.5 / 3) st.third[1]++;
+    for (let i = 15; i < r.length; i += 5) {
+      const tm = r[i + 1], k = tm + ":" + r[i], a = acts[r[i + 4]];
+      const was = st.prev[k];
+      st.prev[k] = a;
+      if (!SHOOT.has(a) || was === undefined || SHOOT.has(was)) continue;
+      if (st.at[k] !== undefined && r[2] - st.at[k] < 1.5) continue;   // flicker of one shot
+      st.at[k] = r[2];
+      const gx = 6.5 * (tm === 0 ? st.dir : -st.dir), d = Math.hypot(gx - r[i + 2], r[i + 3]);
+      const xg = XG_BY_M[Math.min(9, Math.floor(d))];
+      st.sh[tm]++; st.xg[tm] += xg;
+      st.last.push([r[2], tm, r[i], Math.round(d * 10) / 10, xg]);
+      if (st.last.length > 5) st.last.shift();
+    }
+  };
+  const statNow = () => {
+    const h = st.hold[0] + st.hold[1];
+    return { sh: st.sh, xg: st.xg.map(x => Math.round(x * 100) / 100),
+      pos: h ? [Math.round(100 * st.hold[0] / h), 100 - Math.round(100 * st.hold[0] / h)] : null,
+      third: st.all ? st.third.map(x => Math.round(100 * x / st.all)) : null, last: st.last };
+  };
+
   // Live status for the extension's popup (bridge.js passes it on): what is recorded so far.
   function postStatus() {
     if (!matchId) return;
@@ -314,7 +358,7 @@
     window.postMessage({
       source: "drunkards-rec", type: "status", id: matchId, n: rows.length, t: lastTime(),
       t0: first ? first[2] : null, score: last ? [last[4], last[5]] : null, lastWall: last ? last[0] : null,
-      header: (meta.header || "").slice(0, 300), reloads: meta.reloads || 0, stopped, ctl: ctlNow()
+      header: (meta.header || "").slice(0, 300), reloads: meta.reloads || 0, stopped, ctl: ctlNow(), st: statNow()
     }, location.origin);
   }
   setInterval(postStatus, 2000);
@@ -356,6 +400,7 @@
         }
       } catch (e) {}
       comm.sort((a, b) => a[0] - b[0]);
+      statReset(); for (const r of rows) statAdd(r);   // stats over the whole match again
     } catch (e) { /* unreadable copy: carry on with what this page records */ }
     restoring = false;
   };
@@ -429,7 +474,7 @@
       const id = m ? m[1] : "unknown-" + Date.now();
       if (id !== matchId) {
         matchId = id; rows = []; comm = []; seen.clear(); acts = []; actIdx = {}; stopped = false;
-        fresh(); ctl = {};
+        fresh(); ctl = {}; statReset();
         restore(id);
       }
       ws.addEventListener("open", () => {

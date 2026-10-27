@@ -208,12 +208,20 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
       reply({ ok: true, same: true, ...info });
       return;
     }
+    // 1.30: switch "Save portal data" (storage.local portalSave; on with the helper, off in the team
+    // build). The helper writes the file itself, so nothing shows in Chrome's downloads; without the
+    // helper (or if it fails) it is a Chrome download, only while the switch is on.
+    const { portalSave = HAS_NATIVE } = await chrome.storage.local.get("portalSave");
+    if (!portalSave) { await chrome.storage.local.set({ portal: { ...old, ...info, hash: null, off: true } }); reply({ ok: true, off: true, ...info }); return; }
     const text = JSON.stringify({ ...d, saved: new Date().toISOString() });
+    const done = async (ok, how) => {
+      if (ok) await chrome.storage.local.set({ portal: { ...info, hash, saved: Date.now(), how } });
+      reply({ ok, how, ...info });
+    };
+    const nr = await nativeCall({ cmd: "portal_save", text });
+    if (nr && nr.ok) return done(true, "helper");
     const b = bytesToB64(new TextEncoder().encode(text));
-    download("data:application/json;charset=utf-8;base64," + b, `${FOLDER}/portal.json`, undefined, null, null, async ok => {
-      if (ok) await chrome.storage.local.set({ portal: { ...info, hash, saved: Date.now() } });
-      reply({ ok, ...info });
-    });
+    download("data:application/json;charset=utf-8;base64," + b, `${FOLDER}/portal.json`, undefined, null, null, ok => done(ok, "download"));
   })();
   return true;
 });
@@ -276,7 +284,8 @@ const CRED_HOST = "com.drunkards.emulator";
 const DASH = "https://catalog.us-east-1.prod.workshops.aws/event/dashboard/en-US";
 // The team package (package.sh) has no native helper and no nativeMessaging permission: then
 // everything that needs it (AWS keys, coach name, emulator site, local results) stays off.
-const HAS_NATIVE = typeof chrome.runtime.sendNativeMessage === "function";
+const TEAM_BUILD = true;   // package.sh: true (nativeMessaging is there for the updater only)
+const HAS_NATIVE = !TEAM_BUILD && typeof chrome.runtime.sendNativeMessage === "function";
 const nativeCall = msg => !HAS_NATIVE ? Promise.resolve({ ok: false, missing: true, error: "no native helper" })
   : new Promise(res => chrome.runtime.sendNativeMessage(CRED_HOST, msg, r =>
     res(chrome.runtime.lastError ? { ok: false, missing: true, error: chrome.runtime.lastError.message } : r)));
@@ -444,11 +453,36 @@ async function storeInvites(res) {
       chrome.notifications.create("inv:" + it.matchId, {
         type: "basic", iconUrl: "icons/icon128.png", priority: 2, requireInteraction: true,
         title: `Challenge from ${it.from}`, message: `Accept the match?${until}\nThe viewer opens after you accept.`,
-        buttons: [{ title: "Accept" }] });
+        buttons: [{ title: "Accept" }, { title: "Silence" }] });
     } catch (e) {}
   }
   for (const id of invSeen) if (!res.items.some(x => x.matchId === id)) chrome.notifications.clear("inv:" + id);
+  const { invMuted = [] } = await chrome.storage.session.get("invMuted");
+  ring(res.items.some(x => !invMuted.includes(x.matchId))).catch(() => {});
   await chrome.storage.session.set({ invSeen: invSeen.slice(-50) });
+}
+// 1.28: a chime (offscreen page, Web Audio) when a challenge comes in, again every 12 s while one
+// waits to be accepted (an invite lasts ~2 min). Switch: storage.local inviteSound (on by default).
+let lastRing = 0;
+async function ring(waiting) {
+  if (!waiting || Date.now() - lastRing < 12000) return;
+  const { inviteSound = true } = await chrome.storage.local.get("inviteSound");
+  if (!inviteSound || !chrome.offscreen) return;
+  lastRing = Date.now();
+  try {
+    if (!(await chrome.offscreen.hasDocument()))
+      await chrome.offscreen.createDocument({ url: "offscreen.html", reasons: ["AUDIO_PLAYBACK"], justification: "chime for an incoming match challenge" });
+    chrome.runtime.sendMessage({ type: "chime" }).catch(() => {});
+  } catch (e) {}
+}
+// 1.32: "Silence" (notification button or popup) stops the chime for that challenge; new ones still ring.
+async function silenceInvite(matchId) {
+  const { invMuted = [] } = await chrome.storage.session.get("invMuted");
+  const inv = (await chrome.storage.session.get("invites")).invites || {};
+  const ids = matchId ? [matchId] : (inv.items || []).map(x => x.matchId);
+  for (const id of ids) if (!invMuted.includes(id)) invMuted.push(id);
+  await chrome.storage.session.set({ invMuted: invMuted.slice(-50) });
+  return { ok: true, muted: ids.length };
 }
 async function pollInvites() {
   const tabs = await portalTabs();
@@ -484,9 +518,12 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
   if (msg.type === "invites" && sender.tab) { storeInvites(msg.res); return; }
   if (sender.tab) return;   // the rest only from the popup
   if (msg.type === "popup-invites-now") { pollInvites().then(() => reply({ ok: true })); return true; }
+  if (msg.type === "popup-silence") { silenceInvite(msg.matchId).then(reply); return true; }
+  if (msg.type === "popup-chime-test") { lastRing = 0; ring(true).then(() => reply({ ok: true })); return true; }
   if (msg.type === "popup-accept" && msg.matchId) { acceptInvite(msg.matchId).then(reply); return true; }
 });
 chrome.notifications.onButtonClicked.addListener((nid, idx) => {
+  if (nid.startsWith("inv:") && idx === 1) { silenceInvite(nid.slice(4)); return; }
   if (!nid.startsWith("inv:") || idx !== 0) return;
   acceptInvite(nid.slice(4)).then(r => {
     if (!r.ok) chrome.notifications.create("invfail:" + Date.now(), { type: "basic", iconUrl: "icons/icon128.png",
@@ -504,6 +541,51 @@ chrome.notifications.onClicked.addListener(nid => {
 });
 chrome.alarms.get("invites").then(a => { if (!a) chrome.alarms.create("invites", { periodInMinutes: 0.5, delayInMinutes: 0.1 }); });
 chrome.alarms.onAlarm.addListener(a => { if (a.name === "invites") pollInvites().catch(() => {}); });
+
+// ---- Background recording (1.28): a match of ours is on and no tab shows it (a challenge accepted in
+// the portal's own banner, a match started from another device...) → its viewer opens in a background
+// tab of the portal's window, so the recorder hooks the game socket. That tab closes by itself once the
+// recording and the report are saved (or after 12 min). Switch: storage.local bgRec (on by default).
+let bgBusy = false;
+async function bgRecord() {
+  if (bgBusy) return;
+  bgBusy = true;
+  try { await bgRecordOnce(); } finally { bgBusy = false; }
+}
+async function bgRecordOnce() {
+  const { bgRec = true } = await chrome.storage.local.get("bgRec");
+  const { bgTabs = {}, bgSeen = {} } = await chrome.storage.session.get(["bgTabs", "bgSeen"]);   // the worker sleeps between rounds
+  const { hist = {} } = await chrome.storage.local.get("hist");
+  for (const [id, b] of Object.entries(bgTabs)) {   // done or too old: close what we opened
+    const h = hist[id];
+    if ((h && h.rec && h.report) || Date.now() - b.at > 12 * 60e3) {
+      if (!b.closed) { try { const t = await chrome.tabs.get(b.tab); if (t && !t.active) await chrome.tabs.remove(b.tab); } catch (e) {} b.closed = true; }
+      if (Date.now() - b.at > 60 * 60e3) delete bgTabs[id];
+    }
+  }
+  if (bgRec) {
+    const tabs = await portalTabs();
+    const t = tabs.find(x => !/\/viewer|\/report/.test(x.url || ""));
+    const res = t && await new Promise(r => chrome.tabs.sendMessage(t.id, { type: "live-now" }, x => r(chrome.runtime.lastError ? null : x)));
+    for (const m of (res && res.ok && res.items) || []) {
+      if (bgTabs[m.id] || tabs.some(x => (x.url || "").includes(m.id))) continue;
+      // a fresh match: give the portal 15 s to open its own viewer (Start match / Accept do at once)
+      if (!bgSeen[m.id]) bgSeen[m.id] = Date.now();
+      if (Date.now() - Math.min(bgSeen[m.id], m.created || Infinity) < 15000) continue;
+      try {
+        const nt = await chrome.tabs.create({ url: `${SITE}/v2/player/matches/${m.id}/viewer`, active: false, windowId: t.windowId, index: t.index + 1 });
+        bgTabs[m.id] = { tab: nt.id, at: Date.now(), opp: m.opp };
+        notify(m.id, "bgrec", `Recording ${m.opp || "a match"} in the background`, "A match of ours started without a viewer: its viewer opened in a background tab and closes by itself after the save.");
+      } catch (e) {}
+    }
+  }
+  for (const k in bgSeen) if (Date.now() - bgSeen[k] > 60 * 60e3) delete bgSeen[k];
+  await chrome.storage.session.set({ bgTabs, bgSeen });
+}
+// a portal tab also asks every ~10 s (bridge.js), so a match is caught well before kick-off
+chrome.runtime.onMessage.addListener((msg, sender) => { if (msg && msg.type === "bg-live" && sender.tab) bgRecord().catch(() => {}); });
+chrome.alarms.get("bgrec").then(a => { if (!a) chrome.alarms.create("bgrec", { periodInMinutes: 0.5, delayInMinutes: 0.2 }); });
+chrome.alarms.onAlarm.addListener(a => { if (a.name === "bgrec") bgRecord().catch(() => {}); });
 
 // ---- auto-START screen check (1.12): is the orange START button on the viewer's canvas?
 // bridge.js sends the 16:9 picture's rectangle (CSS px); the visible tab is captured and looked

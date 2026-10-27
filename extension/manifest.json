@@ -1,14 +1,16 @@
 {
   "manifest_version": 3,
   "name": "AWS Football Match Plugin",
-  "version": "1.27",
+  "version": "1.33",
   "description": "Records your Agentic Football matches (Downloads/agentic-football-matches), shows the opponent's place, win rate and our record in the viewer, announces challenges, auto-START.",
   "permissions": [
     "downloads",
     "storage",
     "notifications",
     "alarms",
-    "scripting"
+    "nativeMessaging",
+    "scripting",
+    "offscreen"
   ],
   "host_permissions": [
     "https://agentic-football.aws.dev/*",
@@ -51,5 +53,6 @@
       ],
       "run_at": "document_start"
     }
-  ]
+  ],
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAuJFR45lWeGcARcR+YcOR8qB+Sh2Zpy1GIfjF76Z9meisGz/UCoJLSrNCyVRJn3tfUExHeKb3r862Prbh3qJG/F18T24INnxt+G5Zo4Ivt+Utld/hZES+aRSGCdrS69RfeTaXz/2/Gfq56E5ORI/IDEqOkWu7y6d6341oUEoqmE3duBipZ2MVpJBmn4nqpIQwO6Lmdt+K0s0ehzkzxCfvsmMMQB3Ca7O+jEoySnLjVv/j2CGZ9IG13bOSc1PNqmu9bTdSjfrWk+yUuvZa+CC5JxiBOw6w7huPy+NOwZj09Ww8BjT8g5xA2plOjQhQQAiIaxi9TFncNMCUBqNhpkdw2wIDAQAB"
 }

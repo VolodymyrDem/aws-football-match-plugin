@@ -144,6 +144,75 @@ $("autoStart").addEventListener("change", async e => {
 });
 renderAuto();
 
+// Chime on challenge (1.28, on by default); switching it on plays it once as a test.
+async function renderSound() {
+  const { inviteSound = true } = await chrome.storage.local.get("inviteSound");
+  $("inviteSound").checked = !!inviteSound;
+  $("soundInfo").textContent = inviteSound ? "· every 12 s while one waits" : "· off";
+}
+$("inviteSound").addEventListener("change", async e => {
+  await chrome.storage.local.set({ inviteSound: e.target.checked });
+  if (e.target.checked) chrome.runtime.sendMessage({ type: "popup-chime-test" }).catch(() => {});
+  renderSound();
+});
+renderSound();
+
+// Save portal data (1.30): portal.json for the emulator and scripts. With the helper it is written
+// directly (no download in Chrome); without it, a Chrome download — so off by default there.
+const TEAM_BUILD = true;   // package.sh: true (nativeMessaging is there for the updater only)
+const HAS_HELPER = !TEAM_BUILD && typeof chrome.runtime.sendNativeMessage === "function";
+async function renderPS() {
+  const { portalSave = HAS_HELPER } = await chrome.storage.local.get("portalSave");
+  $("portalSave").checked = !!portalSave;
+  $("psInfo").textContent = !portalSave ? "· off" : HAS_HELPER ? "· written quietly by the helper" : "· as a Chrome download";
+}
+$("portalSave").addEventListener("change", async e => { await chrome.storage.local.set({ portalSave: e.target.checked }); renderPS(); });
+renderPS();
+
+// Record in background (1.28, on by default).
+async function renderBg() {
+  const { bgRec = true } = await chrome.storage.local.get("bgRec");
+  $("bgRec").checked = !!bgRec;
+  $("bgInfo").textContent = bgRec ? "· opens a missing viewer in a background tab" : "· off";
+}
+$("bgRec").addEventListener("change", async e => { await chrome.storage.local.set({ bgRec: e.target.checked }); renderBg(); });
+renderBg();
+
+// ---- Our form (1.28): did the newest agent version do better than the ones before? Per version
+// when the local helper knows which version played (match-work metrics), else per block of 10
+// matches. Real opponents only (practice matches against the sample bots are left out).
+function formRows(list) {
+  const n = list.length, w = list.filter(m => m.us > m.them).length, l = list.filter(m => m.us < m.them).length;
+  const gf = n ? list.reduce((a, m) => a + m.us, 0) / n : 0, ga = n ? list.reduce((a, m) => a + m.them, 0) / n : 0;
+  return { n, w, d: n - w - l, l, wr: n ? Math.round(100 * w / n) : 0, gf, ga };
+}
+function renderForm(h) {
+  const el = $("form");
+  if (!h || !h.ok) { el.innerHTML = `<div class="meta">no data yet: open the portal once</div>`; return; }
+  const ts = m => { const s = String(m.at || ""); const t = Date.parse(s.replace(/^(\d{4}-\d\d-\d\d)_(\d\d)(\d\d)$/, "$1T$2:$3")); return isNaN(t) ? 0 : t; };
+  let all = Object.values(h.matches || {}).filter(m => typeof m.us === "number" && typeof m.them === "number");
+  const BOTS = /^(Fort Knox Athletic|Total Attack United|The Benchmark FC)$/i;
+  const real = all.filter(m => !m.practice && !BOTS.test(String(m.opp || "").trim()));
+  if (real.length >= 5) all = real;
+  all.sort((a, b) => ts(b) - ts(a));
+  if (!all.length) { el.innerHTML = `<div class="meta">no finished matches yet</div>`; return; }
+  const groups = [];
+  const byVer = all.filter(m => m.version);
+  if (byVer.length >= 5) {
+    for (const m of byVer) { let g = groups.find(x => x.k === m.version); if (!g) groups.push(g = { k: m.version, list: [] }); g.list.push(m); }
+  } else {
+    for (let i = 0; i < Math.min(all.length, 40); i += 10) groups.push({ k: i ? `${i + 1}–${i + 10} back` : "last 10", list: all.slice(i, i + 10) });
+  }
+  const rows = groups.slice(0, 5).map(g => ({ k: g.k, ...formRows(g.list) }));
+  const cls = (a, b, hi = true) => b == null ? "" : (hi ? a > b : a < b) ? "ok" : (hi ? a < b : a > b) ? "bad" : "";
+  el.innerHTML = `<table class="ping"><tr><th></th><th>n</th><th>W-D-L</th><th>win</th><th title="goals per match, for : against">goals</th></tr>${rows.map((r, i) => {
+    const p = rows[i + 1];
+    return `<tr><td>${esc(r.k)}</td><td>${r.n}</td><td>${r.w}-${r.d}-${r.l}</td><td class="${cls(r.wr, p && p.wr)}">${r.wr}%</td>
+      <td><span class="${cls(r.gf, p && p.gf)}">${r.gf.toFixed(1)}</span>:<span class="${cls(r.ga, p && p.ga, false)}">${r.ga.toFixed(1)}</span></td></tr>`; }).join("")}</table>
+    <div class="meta">${byVer.length >= 5 ? "per agent version, newest first" : "blocks of 10 matches, newest first"} · green / red = better / worse than the row below</div>`;
+}
+chrome.runtime.sendMessage({ type: "popup-h2h" }).then(renderForm).catch(() => renderForm(null));
+
 // ---- Incoming challenges: shown here, accepted only by your click on "Accept".
 async function renderInvites() {
   const inv = (await chrome.storage.session.get("invites")).invites;
@@ -157,14 +226,20 @@ async function renderInvites() {
       : inv.why === "signed out" ? "Challenges: sign in to the portal." : `Challenges: ${esc(inv.why || "error")}`}</div>`;
     return;
   }
+  const { invMuted = [] } = await chrome.storage.session.get("invMuted");
+  const { inviteSound = true } = await chrome.storage.local.get("inviteSound");
   el.innerHTML = items.map(x => {
     const left = x.expires ? Math.max(0, Math.round((Date.parse(x.expires) - Date.now()) / 1000)) : null;
+    const muted = !inviteSound || invMuted.includes(x.matchId);
     return `<div class="inv"><div><div class="who">Challenge from ${esc(x.from)}</div><div class="opp">${oppLine(x.from, x.fromId)}</div>
-      <div class="left">${left !== null ? `${left} s left` : ""}</div></div>
-      <button data-accept="${esc(x.matchId)}" title="Accept the match and open the viewer">Accept</button></div>`;
+      <div class="left">${left !== null ? `${left} s left` : ""}${muted ? " · 🔇 silent" : ""}</div></div>
+      <div style="display:flex;gap:6px">${muted ? "" : `<button data-silence="${esc(x.matchId)}" title="Stop the chime for this challenge (new ones still ring)">🔇</button>`}
+      <button data-accept="${esc(x.matchId)}" title="Accept the match and open the viewer">Accept</button></div></div>`;
   }).join("");
 }
 $("invites").addEventListener("click", ev => {
+  const m = ev.target.closest("button[data-silence]");
+  if (m) { chrome.runtime.sendMessage({ type: "popup-silence", matchId: m.dataset.silence }, () => { toast("Silenced. New challenges still ring."); renderInvites(); }); return; }
   const b = ev.target.closest("button[data-accept]");
   if (!b) return;
   b.disabled = true; b.textContent = "Accepting…";
@@ -280,6 +355,55 @@ $("list").addEventListener("click", ev => {
 });
 
 $("ver").textContent = "v" + chrome.runtime.getManifest().version;
+
+// ---- Update (1.31). An unpacked extension serves its files from disk, so manifest.json read through
+// the extension shows the version on disk; when it is newer than the one Chrome runs, "Update" reloads the
+// plugin (same as ↻ on chrome://extensions; open portal tabs pick it up, the recorder keeps recording).
+// The team build (package.sh fills UPDATE_REPO) also checks the GitHub repo: a newer version there gives
+// the one-line install command to copy (the plugin cannot write its own files), then "Update" reloads.
+const UPDATE_REPO = "shusachenko/aws-football-match-plugin";
+const vnum = v => String(v || "0").split(".").map(Number);
+const newer = (a, b) => { const x = vnum(a), y = vnum(b); for (let i = 0; i < Math.max(x.length, y.length); i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0); } return false; };
+async function checkUpdate() {
+  const run = chrome.runtime.getManifest().version, btn = $("upd"), note = $("updNote");
+  let disk = run, remote = null;
+  try { disk = (await (await fetch(chrome.runtime.getURL("manifest.json") + "?t=" + Date.now(), { cache: "no-store" })).json()).version || run; } catch (e) {}
+  if (!UPDATE_REPO.startsWith("__")) {
+    try { remote = (await (await fetch(`https://raw.githubusercontent.com/${UPDATE_REPO}/main/extension/manifest.json?t=${Date.now()}`, { cache: "no-store" })).json()).version; } catch (e) {}
+  }
+  btn.hidden = false;
+  if (newer(disk, run)) {
+    btn.textContent = `Update to v${disk}`; btn.className = "upd new"; btn.title = "Reload the plugin with the new files";
+  } else {
+    btn.textContent = "↻"; btn.className = "upd"; btn.title = `Reload the plugin (v${run} is the newest${remote ? "" : " on disk"})`;
+  }
+  if (remote && newer(remote, disk)) {
+    const cmd = `curl -fsSL https://raw.githubusercontent.com/${UPDATE_REPO}/main/install.sh | bash`;
+    note.hidden = false;
+    note.innerHTML = `<b>v${esc(remote)} is out.</b> Run this in Terminal, then press the button again: <code>${esc(cmd)}</code> <button id="updCopy">Copy</button>`;
+    btn.textContent = TEAM_BUILD ? `Update to v${remote}` : "Check again"; btn.className = "upd new";
+    btn.title = TEAM_BUILD ? "Download and install the new version, then reload" : "After the install command: reload with the new files";
+    if (TEAM_BUILD) note.innerHTML = `<b>v${esc(remote)} is out.</b> Press <b>Update</b>. No updater on this computer (Windows, or installed before 1.33)? Run this once: <code>${esc(cmd)}</code> <button id="updCopy">Copy</button>`;
+    $("updCopy").onclick = async () => { try { await navigator.clipboard.writeText(cmd); toast("Copied. Paste it into Terminal."); } catch (e) {} };
+  }
+  btn.onclick = async () => {
+    let d = run;
+    try { d = (await (await fetch(chrome.runtime.getURL("manifest.json") + "?t=" + Date.now(), { cache: "no-store" })).json()).version || run; } catch (e) {}
+    if (remote && newer(remote, d) && TEAM_BUILD) {   // 1.33: the updater helper installs it, then reload
+      btn.disabled = true; btn.textContent = "Installing…";
+      const r = await new Promise(res => { try { chrome.runtime.sendNativeMessage("com.awsfootball.updater", { cmd: "update" }, x => res(chrome.runtime.lastError ? null : x)); } catch (e) { res(null); } });
+      btn.disabled = false;
+      if (r && r.ok && r.version && !newer(remote, r.version)) { toast(`Installed v${r.version}, reloading…`); setTimeout(() => chrome.runtime.reload(), 300); return; }
+      btn.textContent = "Check again";
+      toast(r ? `Update failed: ${(r.log || r.error || "").slice(-80)}` : "No updater here (Windows or an old install): run the command once.");
+      return;
+    }
+    if (remote && newer(remote, d)) { toast("Not installed yet: run the command first."); return; }
+    toast(newer(d, run) ? `Updating to v${d}…` : "Reloading…");
+    setTimeout(() => chrome.runtime.reload(), 300);
+  };
+}
+checkUpdate();
 refresh();
 setInterval(refresh, 1500);
 
@@ -287,7 +411,7 @@ setInterval(refresh, 1500);
 const HOST = "com.drunkards.emulator";
 let emuBusy = false;
 // team package: no native helper — its sections (emulator site, AWS keys) are hidden
-const HAS_NATIVE = typeof chrome.runtime.sendNativeMessage === "function";
+const HAS_NATIVE = HAS_HELPER;
 if (!HAS_NATIVE) for (const id of ["emu", "creds"]) {
   const card = $(id);
   if (!card) continue;
@@ -342,7 +466,7 @@ async function renderPortal(text) {
   const el = $("portal");
   if (!p) el.innerHTML = `<div class="meta">Not saved yet. Open the portal (any page where you are signed in) and the data comes by itself.</div>`;
   else el.innerHTML = `<div class="pill ok"><span class="dot"></span>${esc(p.name || "?")}${p.rank ? ` · #${p.rank} of ${p.total}` : ""}</div>
-    <div class="meta">table ${p.teams} teams · ${p.matches} matches · changed ${hhmm(p.saved)} · checked ${hhmm(p.checked)}</div>`;
+    <div class="meta">table ${p.teams} teams · ${p.matches} matches · changed ${hhmm(p.saved)} · checked ${hhmm(p.checked)}${p.off ? " · portal.json not saved (switch off)" : p.how ? ` · ${p.how === "helper" ? "written by the helper" : "Chrome download"}` : ""}</div>`;
   if (text) el.insertAdjacentHTML("beforeend", `<div class="hint">${esc(text)}</div>`);
 }
 $("portalNow").addEventListener("click", async () => {

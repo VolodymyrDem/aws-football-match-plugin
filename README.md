@@ -5,7 +5,7 @@
 **Scout every opponent, never lose a match recording, and never miss a challenge in the Agentic Football Cup.**
 
 ![Chrome](https://img.shields.io/badge/Chrome-extension-4285F4?logo=googlechrome&logoColor=white)
-![Version](https://img.shields.io/badge/version-1.27-22d3ee)
+![Version](https://img.shields.io/badge/version-1.33-22d3ee)
 ![Manifest](https://img.shields.io/badge/Manifest-V3-6e56cf)
 ![Install](https://img.shields.io/badge/install-one%20command-4ade80)
 ![Privacy](https://img.shields.io/badge/data-stays%20on%20your%20Mac-94a3b8)
@@ -32,7 +32,12 @@ Chrome then opens `chrome://extensions` with the path already copied. Three clic
 2. **Load unpacked**
 3. **Cmd+Shift+G → Cmd+V → Enter → Select**
 
-That's it. **To update, run the same command** and press ↻ on the extension's card.
+That's it. **Updates are one click:** when a new version is out, the popup shows a green **Update to vX** button
+at the top — press it and the plugin installs the new version and reloads itself.
+
+> ♻️ **Coming from a version before 1.33?** Run the install command once more, then — one time only — click
+> **Remove** on the old card in `chrome://extensions` and **Load unpacked** the same folder again (the plugin now
+> has a fixed ID so the updater can talk to it). From then on, updates are the button.
 
 > 🪟 **Windows / no Terminal:** grab the zip from [Releases](https://github.com/shusachenko/aws-football-match-plugin/releases/latest), unzip it,
 > run `Install.bat` (Mac: `Install.command`, the first time right-click → Open), then the same three clicks.
@@ -52,6 +57,11 @@ That's it. **To update, run the same command** and press ↻ on the extension's 
 | 🔔 **Never miss a challenge** | A macOS notification and a card with **Accept** and a countdown. One click accepts and opens the viewer. |
 | ▶️ **Auto-START** | Presses the viewer's START screen for you. Optional, off by default. |
 | 📶 **Agents' ping at a glance** | Average and p99 latency per position, yours and the opponent's. |
+| 📊 **This match, live** | Shots, an xG guide, possession and attacking-third time for both sides while you watch. |
+| 📈 **Form at a glance** | The opponent's last 5 results and 24-hour trend; your own form per block of 10 matches in the popup. |
+| 🛎️ **A chime you can't miss** | A sound every 12 s and a flashing portal tab while a challenge waits. |
+| ⬆️ **One-click updates** | A green *Update* button when a new version is out; it installs and reloads by itself. |
+| 🎥 **Records even unwatched** | A match of yours with no viewer open gets one in a background tab, closed after the save. |
 | 🔒 **Private by design** | Runs only on agentic-football.aws.dev, uses your own portal session, sends nothing anywhere. |
 
 ---
@@ -86,7 +96,9 @@ During a match the viewer's right column shows the opponent's **place**, **win r
 **against you**, **your record and goals**, the **last match**, **ping per position** for both teams and
 what the plugin is doing (recording, Auto-START, Auto-accept). An **agents live** table shows, per position, how
 much of the last 30 s each player spent on an agent command, for both teams, and how long your player has been
-without one: a silent or slow agent shows at once. Press **▾** to fold it into a strip and
+without one: a silent or slow agent shows at once. Above it, **this match live**: shots, an xG guide,
+possession and how much the ball sits in each side's attacking third. Under the win rates, the opponent's
+**form**: their last 5 results and whether they are rising or falling over the last 24 h. Press **▾** to fold it into a strip and
 see the Coach Live Feed again. It appears whether you started the match yourself or accepted a challenge.
 
 ---
@@ -104,7 +116,10 @@ Click the extension's icon:
 - **This match** — recording, report and score screenshot, each ✓ when saved, plus warnings
   (late start, silent socket, reloads)
 - **Stop & save**, **Screenshot**, **Folder**, **Day summary** (copies today's matches as a table, with your W-D-L)
-- **Auto-START** and **Auto-accept** switches
+- **Auto-START**, **Auto-accept**, **Chime on challenge** and **Record in background** switches
+- **Our form** — W-D-L, win rate and goals per block of 10 matches, real opponents only
+- **Update** — at the top, next to the version: installs a new version in one click
+- **🔇** on a ringing challenge — silence it (new challenges still ring)
 - **Agents' ping** — this match for both teams, plus the portal's recent average and p99
 - **Recent matches** with ✓/✗ per file — click one to open its report and fill in what is missing
 
@@ -151,6 +166,8 @@ accepted by itself, the viewer opens and you get a notification. Built-in safegu
 - Runs only on `agentic-football.aws.dev`.
 - Reads the portal's API with **your own signed-in session in the page**; the token never leaves the page.
 - Files go to your Downloads folder only. No servers, no analytics, no tracking.
+- The updater (`updater.pl`, installed next to the plugin) does one thing: when you press *Update*, it runs this
+  repo's own installer. Chrome lets only this plugin start it.
 - Screenshots used to find the START button are looked at in memory and never saved.
 
 ---
