@@ -90,6 +90,7 @@ async function renderLast(hist, liveId) {
   el.innerHTML = `<div class="sumhead"><span><span class="${res[1]}" style="font-weight:700">${res[0]}</span> vs ${esc(opp)}</span><span class="sc">${a}:${b}</span></div>
     <div class="meta">${hhmm(h.first)} · ${[h.rec ? "recording ✓" : "recording ✗", h.report ? "report ✓" : "report ✗", h.shot || h.manualShot ? "screenshot ✓" : "screenshot ✗"].join(" · ")}</div>
     ${S ? `<div class="bars">${bar("shots", S.sh[us], S.sh[1 - us])}${bar("xG", S.xg[us], S.xg[1 - us], v => (v || 0).toFixed(1))}${S.pos ? bar("possession", S.pos[us], S.pos[1 - us], v => v + "%") : ""}${S.third ? bar("attacking third", S.third[us], S.third[1 - us], v => v + "%") : ""}</div>` : `<div class="meta" style="margin-top:6px">No live stats for this one (recorded before 1.34).</div>`}
+    ${S && S.ctl ? `<div class="meta" style="margin-top:4px" title="goals after our agent's shot (CoachShoot) / the game's built-in AI shot (ShootAtGoal); ball carried by agent = share of our time on the ball under an agent command">goals by agent / built-in AI: <b>${S.ctl.ga[us]}</b> / <b>${S.ctl.gi[us]}</b> (them ${S.ctl.ga[1 - us]} / ${S.ctl.gi[1 - us]})${S.ctl.ball[us] != null ? ` · ball by agent <b>${S.ctl.ball[us]}%</b> (them ${S.ctl.ball[1 - us] ?? "—"}%)` : ""}</div>` : ""}
     ${silent.length ? `<div class="warns">Silent agents (20+ s without a command): ${esc(silent.join(", "))}</div>` : ""}`;
   el.onclick = () => chrome.tabs.create({ url: `${SITE}/matches/${h.id}/report` });
   el.style.cursor = "pointer"; el.title = "Open the report";
@@ -140,22 +141,18 @@ async function renderAuto() {
   $("autoStart").checked = !!autoStart;
   $("autoInfo").textContent = autoStart ? "· presses START when it sees the title screen (tab must be visible)" : "· off";
 }
-// Auto-accept (1.13): workshop day only. Switching it on lasts until 23:59 today; it cannot be
-// switched on during the tournament (28-29.10.2026: every challenge is accepted by hand).
-const TOURNAMENT = [Date.parse("2026-10-28T00:00:00Z"), Date.parse("2026-10-30T00:00:00Z")];
-const inTournament = () => Date.now() >= TOURNAMENT[0] && Date.now() < TOURNAMENT[1];
+// Auto-accept (1.13): switching it on lasts until 23:59 today. 1.48: allowed on the tournament
+// days too (the user's call, 28.10.2026).
 async function renderAA() {
   const { autoAccept } = await chrome.storage.local.get("autoAccept");
-  const on = !!(autoAccept && autoAccept.on && Date.now() < (autoAccept.until || 0) && !inTournament());
+  const on = !!(autoAccept && autoAccept.on && Date.now() < (autoAccept.until || 0));
   $("autoAccept").checked = on;
-  $("autoAccept").disabled = inTournament();
-  $("aaInfo").textContent = inTournament() ? "· not available during the tournament (rules: by hand only)"
-    : on ? `· on until ${new Date(autoAccept.until).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}` : "· off";
+  $("autoAccept").disabled = false;
+  $("aaInfo").textContent = on ? `· on until ${new Date(autoAccept.until).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}` : "· off";
 }
 $("autoAccept").addEventListener("change", async e => {
-  if (e.target.checked && inTournament()) { e.target.checked = false; return; }
   const end = new Date(); end.setHours(23, 59, 0, 0);
-  await chrome.storage.local.set({ autoAccept: e.target.checked ? { on: true, until: Math.min(end.getTime(), TOURNAMENT[0]), at: Date.now() } : { on: false, offAt: Date.now() } });
+  await chrome.storage.local.set({ autoAccept: e.target.checked ? { on: true, until: end.getTime(), at: Date.now() } : { on: false, offAt: Date.now() } });
   renderAA();
   toast(e.target.checked ? "Auto-accept is on until the end of the day. Keep a portal tab open." : "Auto-accept is off.");
 });
@@ -449,8 +446,9 @@ $("folder").addEventListener("click", () => {
   chrome.runtime.sendMessage({ type: "popup-folder", dl });
 });
 // Today's matches as a tab-separated table (pastes into a sheet or a message) + our W-D-L.
-const US = "The Drunkards";
+// 1.63: our name from the portal table (the team build counted only "The Drunkards", so others got 0-0-0)
 $("day").addEventListener("click", async () => {
+  const US = usName();
   const { hist = {} } = await chrome.storage.local.get("hist");
   const today = new Date().toDateString();
   const rows = Object.values(hist).filter(h => !String(h.id).startsWith("unknown") && new Date(h.first).toDateString() === today)
@@ -599,7 +597,7 @@ async function renderPortal(text) {
   const el = $("portal");
   if (!p) el.innerHTML = `<div class="meta">Not saved yet. Open the portal (any page where you are signed in) and the data comes by itself.</div>`;
   else el.innerHTML = `<div class="pill ok"><span class="dot"></span>${esc(p.name || "?")}${p.rank ? ` · #${p.rank} of ${p.total}` : ""}</div>
-    <div class="meta">table ${p.teams} teams · ${p.matches} matches · changed ${hhmm(p.saved)} · checked ${hhmm(p.checked)}${p.off ? " · portal.json not saved (switch off)" : p.how ? ` · ${p.how === "helper" ? "written by the helper" : "Chrome download"}` : ""}</div>`;
+    <div class="meta">table ${p.teams} teams · ${p.matches} matches${p.league ? ` · all teams ${p.league} matches` : ""} · changed ${hhmm(p.saved)} · checked ${hhmm(p.checked)}${p.off ? " · portal.json not saved (switch off)" : p.how ? ` · ${p.how === "helper" ? "written by the helper" : "Chrome download"}` : ""}</div>`;
   if (text) el.insertAdjacentHTML("beforeend", `<div class="hint">${esc(text)}</div>`);
 }
 $("portalNow").addEventListener("click", async () => {

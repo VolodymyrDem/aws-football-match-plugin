@@ -5,18 +5,32 @@
 **Scout every opponent, never lose a match recording, and never miss a challenge in the Agentic Football Cup.**
 
 ![Chrome](https://img.shields.io/badge/Chrome-extension-4285F4?logo=googlechrome&logoColor=white)
-![Version](https://img.shields.io/badge/version-1.43-22d3ee)
+![Version](https://img.shields.io/badge/version-1.63-22d3ee)
 ![Manifest](https://img.shields.io/badge/Manifest-V3-6e56cf)
 ![Install](https://img.shields.io/badge/install-one%20command-4ade80)
 ![Privacy](https://img.shields.io/badge/data-stays%20on%20your%20Mac-94a3b8)
 
-<img src="docs/social-preview.png" alt="AWS Football Match Plugin: win chance and odds, live xG, shots, possession and a shot map, challenge alerts and group marks, every match recorded" width="100%">
+<img src="docs/social-preview.png" alt="AWS Football Match Plugin: win chance and odds, live xG, shots, possession and a shot map, agent or built-in AI per player, challenge alerts and group marks, every match recorded" width="100%">
 
 </div>
 
 ---
 
 <p align="center"><b>⭐ If it helps your team, give it a star — it helps other teams find it.</b></p>
+
+## 🆕 What's new since 1.43
+
+- **Three tabs under the game** — *Match* (stats + shot map or a live pitch), *Agents* (a card per player) and
+  *Timeline* (the whole match, second by second).
+- **Who scored, and who decided** — every goal as a chip: scorer, the pass before it, and whether your agent or the
+  game's built-in AI took the shot. Same at full time in the summary.
+- **Their players too** — the *Agents* and *Timeline* tabs switch between your team and the opponent's.
+- **Stamina** — a ⚡ tired chip for your players under 20, tired stretches underlined on the timeline.
+- **Actions coloured by kind** — move, shoot, pass, press, dribble — on the cards and the ball line.
+- **The opponent's tactics and agent health** this match, from the portal; a calmer side panel with folded blocks.
+- **Find match** marks a team that is busy in a match right now.
+- Fixes: *Day summary* counts your own team's W-D-L (it counted only ours), long rows and the ping table fit a
+  narrow side panel.
 
 ## 👀 The same match, without and with the plugin
 
@@ -39,9 +53,9 @@
 </td>
 <td valign="top">
 
-- **under the game:** score and clock, shots, xG, possession, attacking third — numbers and bars — a shot map
-  and your agents live
-- **on the right:** win chance and odds, the opponent's place, win rates, their last 5, your record, ping
+- **under the game:** score, clock, who has the ball, every goal (scorer, pass, agent or game AI) and three tabs —
+  **Match**, **Agents**, **Timeline**
+- **on the right:** win chance, the opponent's place and win rate, your record against them, their last 5
 - the live score on the plugin's icon, a summary at the final whistle, the match saved to a file
 
 </td>
@@ -90,7 +104,8 @@ at the top — press it and the plugin installs the new version and reloads itse
 | 🔔 **Never miss a challenge** | A macOS notification and a card with **Accept** and a countdown. One click accepts and opens the viewer. |
 | ▶️ **Auto-START** | Presses the viewer's START screen for you. Optional, off by default. |
 | 📶 **Agents' ping at a glance** | Average and p99 latency per position, yours and the opponent's. |
-| 📊 **This match, live** | Shots, xG, possession and attacking-third time as numbers and bars, plus a shot map — in a wide strip under the game. |
+| 🤖 **Agent or game AI?** | See live which of your players follow an agent command and which the game's own AI moves. |
+| 📊 **This match, live** | Under the game, in three tabs: stats + shot map, a card per agent, and a whole-match timeline. Every goal says who scored and whether your agent or the game's built-in AI took the shot. |
 | 🏁 **Score on the icon + summary** | The live score on the plugin icon; at full time a summary: result, xG, shots, silent agents. |
 | 📈 **Form at a glance** | The opponent's last 5 results and 24-hour trend; your own form per block of 10 matches in the popup. |
 | 🛎️ **A chime you can't miss** | A sound every 12 s and a flashing portal tab while a challenge waits. |
@@ -111,42 +126,69 @@ at the top — press it and the plugin installs the new version and reloads itse
 
 Open **Find opponent** and every team already tells you how it stands:
 
-- `⚑ GROUP B` — the team is in your tournament group ([load your group](#-your-tournament-group))
-- `win 79%` — your chance to beat them (hover for draw / lose and the odds)
+- `⚑ D` — the team is in your tournament group ([load your group](#-your-tournament-group))
+- `● in match` — the team is playing right now (challenge it and you wait)
 - `#24` — place in the tournament table
 - `43%` — their win rate overall (red from 60%, yellow from 45%)
-- `vs us 3-0-3 (50%)` — their wins-draws-losses against **you**, and how often they beat you
-  (red from 50%, yellow from 25%)
+- `vs us 3-0-3` — their wins-draws-losses against **you** (red when they beat you half the time or more,
+  yellow from a quarter)
+- `win 79%` — your chance to beat them (hover for draw / lose and the odds)
 
 Hover a badge for the full story: record, goals and the last result against you.
 
 Works while you type in the search box too.
 
 </td>
-<td width="50%"><img src="docs/find-match.png" alt="The Find match dialog with rank, win rate and our record next to every team"></td>
+<td width="50%"><img src="docs/find-match.png" alt="The Find match dialog with group mark, busy marker, rank, win rate, their record against us and our win chance next to every team"></td>
 </tr>
 </table>
 
 ### The match, live — under the game
 
-A wide strip inside the game's frame, from kick-off to the final whistle:
+A wide strip inside the game's frame, from kick-off to the final whistle. Always on top:
 
-- **score and clock**, then **shots**, an **xG guide**, **possession** and **ball in the attacking third** — numbers
-  plus a bar for each (cyan = you, orange = them);
-- a **shot map**: every shot where it was taken, size = xG, filled = goal; you attack to the right;
-- **agents live**: per position, how much of the last 30 s each player spent on an agent command (yours and
-  theirs) and how long your player has been without one — a silent agent shows at once.
+- **score and clock**, and **who has the ball right now** — "⚽ MID · AGENT Move To" or "⚽ MID · AI Advance To
+  Goal With Ball": your agent's command or the game's built-in AI;
+- **every goal** as a small chip — time, scorer and a dot: cyan circle = your agent's shot, grey square = the game's
+  built-in AI; **hover** it for the distance and the pass before it (agent or AI) — plus "our goals 5 agent · 1 AI".
+
+Three tabs (the last one you opened is remembered):
+
+<img src="docs/agents-tab.png" alt="The Agents tab: a card per player with who moves him now, a 40-second agent / AI strip, agent control, time on the ball, shots and goals, and his last decisions" width="100%">
+
+- **Match** — shots, an **xG guide**, possession, **agent on the ball** (how much of the time your carrier follows an
+  agent command), ball in the attacking third, passes completed, ball won — one row each, cyan = you, orange =
+  them; next to it a **shot map** (○ agent shot, □ built-in AI shot, filled = goal, size = xG) or the **Live** pitch
+  (filled dot = agent command, hollow = game AI, white ring = on the ball);
+- **Agents** — a card per player (GK, DEF, MID, FWD1, FWD2): who moves him now, a 40 s strip (cyan =
+  agent, grey = AI), stamina, agent control, time on the ball and its agent share, shots / goals / assists, and **his
+  own last decisions** ("0:57 AGENT Shoot", "0:56 AI Chase Ball"), each action coloured by kind — move grey, shoot
+  pink, pass green, press / intercept / mark / chase yellow, dribble violet; the card of the player on the ball is outlined;
+  under the cards: commands per minute, the longest silence and stamina for both teams; a red line on top if the
+  portal reports errors for one of your agents; **Our players / Their players** switches the cards to the opponent
+  (their new commands seen in the game stream instead of your decisions); under the 40 s strip a thin second strip shows the **kind of action** each second (grey
+  move, pink shoot, green pass, yellow press / intercept / mark, violet dribble); a red **⚡ tired** chip in the top
+  line names any of your players under 20 stamina;
+- **Timeline** — the whole match second by second: who held the ball, every shot and goal, and a lane per player
+  (cyan = agent command, grey = game AI, white mark = on the ball); **hover** a shot or goal for who took it, or any
+  second of a lane for who had the ball / how much the agent commanded that player and his stamina; a yellow / red
+  underline marks a tired player (under 50 / under 20); **Our players / Their players** switches the lanes to the
+  opponent's team.
+
+<img src="docs/timeline-tab.png" alt="The Timeline tab: the ball holder, every shot and goal, and a lane per player for the whole match" width="100%">
 
 Before kick-off it simply says *waiting*. **→ side panel** moves it into the right column if you prefer.
 
 ### The opponent panel
 
-The viewer's right column (in place of the empty Coach Live Feed): **your win chance** (win / draw / lose bar and
-fair odds), **your win rate against them**, the opponent's **place**, **win rate overall** and **against you**, **your record and goals**, **their last 5** results (W = they won, L = they lost) and whether
-they are rising or falling over 24 h,
-the **last match** between you, your agents' **ping** per position and what the plugin is doing. Sections fold
-one by one; **▾** folds the whole panel to show the Coach Live Feed. It appears whether you started the match
-yourself or accepted a challenge.
+The viewer's right column (in place of the empty Coach Live Feed) keeps only what you need at a glance: your
+**win chance**, the opponent's **place** and **win rate** (chips under the name), **your record against them**,
+**their last 5** results (W = they won, L = they lost), the **last match** between you and their coach's tactics this
+match. The rest sits in three folded blocks: **Their form** (win / draw / lose odds, their record, 24 h form, goals
+per game), **Play style** (theirs and yours side by side, one row per command type, plus commands a match and
+ping) and **Agents & ping** (agent health when the portal has it, your agents' ping). A green **● REC** by the name
+shows the recording; a one-line footer says how far it got. **▾** folds the whole panel to show the Coach Live
+Feed. It appears whether you started the match yourself or accepted a challenge.
 
 ### At the final whistle
 
@@ -212,8 +254,6 @@ Your own team in the list does no harm. The group stays in your Chrome only.
 
 ## 🧰 The popup
 
-<table>
-<tr>
 <img src="docs/popup.png" alt="The extension popup's three tabs: Match (recording, last match with bars, ping), Form (our form, recent matches) and Settings (switches, my group as a table)" width="100%">
 
 Click the extension's icon. On top of every tab: **incoming challenges** (who is calling, their numbers, a
@@ -221,7 +261,7 @@ countdown, **Accept** and **🔇** to silence the chime) and **Update** next to 
 
 | Tab | What's there |
 |---|---|
-| **Match** | this match: recording, report and score screenshot, each ✓ when saved, plus warnings · **Last match**: result, shots, xG, possession, silent agents · **Stop & save**, **Screenshot**, **Folder**, **Day summary** · your agents' **ping** |
+| **Match** | this match: recording, report and score screenshot, each ✓ when saved, plus warnings · **Last match**: result, shots, xG, possession, goals by agent / built-in AI, silent agents · **Stop & save**, **Screenshot**, **Folder**, **Day summary** · your agents' **ping** |
 | **Form** | **Our form**: W-D-L, win rate and goals per block of 10 matches (real opponents only) · **Recent matches** with ✓/✗ per file — click one to open its report |
 | **⚙ Settings** | the switches (Auto-START, Auto-accept, Chime, Record in background, Save portal data) · **My group** with its table |
 
@@ -258,12 +298,11 @@ anyway and the title screen stays until it is clicked. With the switch on and th
 plugin looks for the orange START button on the game picture and clicks it, then stops as soon as the game
 shows. It never accepts challenges.
 
-**✅ Auto-accept challenges** (off by default, **for practice days only**). Every new incoming challenge is
-accepted by itself, the viewer opens and you get a notification. Built-in safeguards:
+**✅ Auto-accept challenges** (off by default). Every new incoming challenge is accepted by itself, the viewer
+opens and you get a notification. Check your tournament's rules first: some rounds require every challenge to be
+accepted by hand. Built-in safeguards:
 
 - once switched on, it lasts only until **23:59 that day** and then turns itself off;
-- it **cannot be switched on and never accepts on the tournament days (28–29 Oct)** — the tournament rules
-  say every challenge is accepted by hand there; the check runs before every single accept;
 - it needs an open portal tab (agentic-football.aws.dev), which it checks every 3 s.
 
 **🛎️ Chime on challenge** (on). Three notes when a challenge comes in, again every 12 s while it waits; the

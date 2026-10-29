@@ -128,10 +128,19 @@ async function endCheck(id, final) {
 // 1.34: the end-of-match notification is a summary — result ours first, xG, shots, possession, our
 // players that went 20+ s without an agent command — then what was saved.
 const POS5 = ["GK", "DEF", "MID", "FWD1", "FWD2"];
+// 1.60: per team (home / away) goals after an agent's shot / the built-in AI's, and the agent's share of ball carrying
+function ctlSum(st) {
+  if (!st || !st.goals) return undefined;
+  const out = { ga: [0, 0], gi: [0, 0], ball: [null, null] };
+  for (const x of st.goals) if (x[1] === 0 || x[1] === 1) { if (x[3] === 1) out.ga[x[1]]++; else if (x[3] === 0) out.gi[x[1]]++; }
+  for (const tm of [0, 1]) { let a = 0, n = 0; for (const k in st.hag || {}) if (+k.split(":")[0] === tm) { a += st.hag[k][0]; n += st.hag[k][1]; } out.ball[tm] = n ? Math.round(100 * a / n) : null; }
+  return out;
+}
 function summaryLines(h, us) {
   const out = [];
   const S = h.sum, f = (arr, k = v => v) => arr ? `${k(arr[us])}:${k(arr[1 - us])}` : "";
   if (S) out.push([`xG ${f(S.xg, v => (v || 0).toFixed(1))}`, `shots ${f(S.sh)}`, S.pos ? `possession ${S.pos[us]}%` : ""].filter(Boolean).join(" · "));
+  if (S && S.ctl && S.ctl.ga[us] + S.ctl.gi[us]) out.push(`Our goals: ${S.ctl.ga[us]} by agent · ${S.ctl.gi[us]} by built-in AI${S.ctl.ball[us] != null ? ` · ball by agent ${S.ctl.ball[us]}%` : ""}`);
   const silent = Object.entries(h.off || {}).filter(([k, v]) => +k.split(":")[0] === us && +k.split(":")[1] > 0 && v >= 20)
     .map(([k, v]) => `${POS5[+k.split(":")[1]]} ${v} s`);
   if (silent.length) out.push(`Silent agents: ${silent.join(", ")}`);
@@ -185,7 +194,7 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
       Object.assign(h, { t: msg.t, t0: msg.t0, n: msg.n, reloads: msg.reloads });
       // 1.34: the live stats for the end-of-match summary (home / away order, like score)
       if (msg.st && msg.st.sh) h.sum = { sh: msg.st.sh, xg: msg.st.xg, pos: msg.st.pos, third: msg.st.third,
-        goals: (msg.st.map || []).filter(m => m[6]).map(m => [m[0], m[1], m[2]]) };
+        goals: (msg.st.map || []).filter(m => m[6]).map(m => [m[0], m[1], m[2]]), ctl: ctlSum(msg.st) };
       if (msg.ctl) {   // seconds our players went without an agent command, worst seen (silent agents)
         h.off = h.off || {};
         for (const [k, v] of Object.entries(msg.ctl)) if (v && v[1] != null && v[1] > (h.off[k] || 0)) h.off[k] = v[1];
@@ -254,7 +263,8 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
     const hash = await digest(body);
     const { portal: old = {} } = await chrome.storage.local.get("portal");
     const info = { checked: Date.now(), name: d.team && d.team.name, rank: d.standing && d.standing.rank,
-                   total: d.total_teams, teams: d.table.length, matches: d.matches.length };
+                   total: d.total_teams, teams: d.table.length, matches: d.matches.length,
+                   league: d.league && d.league.rows ? d.league.rows.length : 0 };
     if (old.hash === hash && old.saved) {
       await chrome.storage.local.set({ portal: { ...old, ...info } });
       reply({ ok: true, same: true, ...info });
@@ -337,6 +347,9 @@ const DASH = "https://catalog.us-east-1.prod.workshops.aws/event/dashboard/en-US
 // The team package (package.sh) has no native helper and no nativeMessaging permission: then
 // everything that needs it (AWS keys, coach name, emulator site, local results) stays off.
 const TEAM_BUILD = true;   // package.sh: true (nativeMessaging is there for the updater only)
+// 1.49: all teams' matches (bridge.js leagueRead) only in our own build — the team build does not need them.
+chrome.storage.local.set({ leagueRead: !TEAM_BUILD });
+
 const HAS_NATIVE = !TEAM_BUILD && typeof chrome.runtime.sendNativeMessage === "function";
 const nativeCall = msg => !HAS_NATIVE ? Promise.resolve({ ok: false, missing: true, error: "no native helper" })
   : new Promise(res => chrome.runtime.sendNativeMessage(CRED_HOST, msg, r =>
@@ -469,13 +482,11 @@ chrome.alarms.onAlarm.addListener(a => { if (a.name === "coach") coachCheck().ca
 // works on the tournament days 28-29.10.2026 (OrgCrew: every challenge there is accepted by hand).
 // After accepting, the viewer opens in a new tab.
 const portalTabs = () => chrome.tabs.query({ url: SITE + "/*" });
-// tournament days: auto-accept never runs (UTC, a little wider than the published schedule)
-const TOURNAMENT = [Date.parse("2026-10-28T00:00:00Z"), Date.parse("2026-10-30T00:00:00Z")];
-const inTournament = (t = Date.now()) => t >= TOURNAMENT[0] && t < TOURNAMENT[1];
+// 1.48: auto-accept works on the tournament days too (the user's call).
 async function autoAcceptActive() {
   const { autoAccept } = await chrome.storage.local.get("autoAccept");
   if (!autoAccept || !autoAccept.on) return false;
-  if (Date.now() >= (autoAccept.until || 0) || inTournament()) {
+  if (Date.now() >= (autoAccept.until || 0)) {
     await chrome.storage.local.set({ autoAccept: { on: false, offAt: Date.now() } });   // expired: off for good
     return false;
   }
@@ -709,7 +720,7 @@ async function keepTableAndResults(d) {
       us: home ? r.home_score : r.away_score, them: home ? r.away_score : r.home_score, at: m.completed_at || m.created_at,
       practice: !!m.is_practice };
   }
-  await chrome.storage.local.set({ lb: { at: Date.now(), total: d.total_teams, us, teams: lb }, h2hPortal });
+  await chrome.storage.local.set({ lb: { at: Date.now(), total: d.total_teams, us, teams: lb, tournament: d.tournament_id || (d.team && d.team.tournament_id) || null }, h2hPortal });
 }
 // 1.36: our tournament group, from the local helper (native/group.json) — own build only; the team
 // build has no helper, so nobody else gets the mark. {name, teams: [lower-case names]} or null.

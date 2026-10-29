@@ -34,7 +34,15 @@
   // stamina / sprint / velocity / server time (e.g. XP = ["3.0", "4"], XG = ["7"]).
   // 1.28: mapped with map_fields.py on two matches (|r| ≥ 0.97 against TRACE): 5 = stamina,
   // 13 = isSprinting, 3.0 / 3.1 = velocity x / y (≈ 8.5 × raw = TRACE vx / vy).
-  const XP = ["5", "13", "3.0", "3.1"], XG = [];
+  // 1.45: + 4 = facing (degrees, = atan2(vx, vz)), 6 = animation state (0 stand, 1 run, 3–5 kick / tackle),
+  // 11 = an animation counter; frame 8 = match phase (7 = play), 9 = kick-off countdown in seconds.
+  // 1.55: fields rec_fields.py flagged as still unused — ball spin (frame 5.4 = rotation x/y/z, 5.5 =
+  // angular velocity x/y/z: for the emulator's shot flight / bounce), player 9 = stance ("Balanced"…,
+  // set by SET_STANCE) and 12 / 14 (per-player numbers, 14 takes only ~3 values — a role / skill weight?):
+  // 12 and 14 are not named yet, kept so a later map_fields.py pass can identify them. (10 = agentId is
+  // static per player, not kept.)
+  const XP = ["5", "13", "3.0", "3.1", "4", "6", "11", "9", "12", "14"],
+        XG = ["8", "9", "5.4.0", "5.4.1", "5.4.2", "5.5.0", "5.5.1", "5.5.2"];
   let rows = [];
   let comm = [];
   let matchId = null;
@@ -169,6 +177,8 @@
         rows.push(row);
         ctlAdd(g);
         statAdd(row);
+        stamAdd(g);
+        postLive(g);
         if (rows.length % 200 === 0) persist();        // ~5 s of play, even in a throttled tab
         if (rows.length % 80 === 0) postStatus();
       } catch (e) { g = null; /* not a game-state frame */ }
@@ -287,17 +297,35 @@
   // filling in. Per player of both teams: the share of the last 30 s under an agent command, and
   // for how long the player has been without one (0 while a command runs; an agent repeating the
   // same command shows as one long Coach* action, so "new command" times are not visible).
-  const CTL_WIN = 30;
-  let ctl = {};
+  const CTL_WIN = 30, CTL_TL = 40;   // 1.44: a 40 s timeline per player (agent share of each second)
+  let ctl = {}, evLog = [];
+  let stamNow = null;
   const ctlAdd = g => {
     const sec = Math.floor(Date.now() / 1000);
+    try { const sm = [0, 0], sn = [0, 0]; for (const pl of g[6] || []) if (typeof pl[5] === "number" && (pl[1] === 0 || pl[1] === 1)) { sm[pl[1]] += pl[5]; sn[pl[1]]++; }
+      stamNow = sn[0] && sn[1] ? [Math.round(100 * sm[0] / sn[0]), Math.round(100 * sm[1] / sn[1])] : stamNow; } catch (e) {}
     for (const pl of g[6] || []) {
       const k = pl[1] + ":" + pl[0], a = String(pl[8]), on = a.startsWith("Coach");
       const c = ctl[k] || (ctl[k] = { b: [], last: null });
       let b = c.b[c.b.length - 1];
-      if (!b || b[0] !== sec) { b = [sec, 0, 0]; c.b.push(b); if (c.b.length > CTL_WIN + 1) c.b.shift(); }
+      if (!b || b[0] !== sec) { b = [sec, 0, 0, {}]; c.b.push(b); if (c.b.length > CTL_TL + 1) c.b.shift(); }
       b[2]++; if (on) b[1]++;
+      const cat = ACAT(a); b[3][cat] = (b[3][cat] || 0) + 1;   // 1.60: what kind of action, for the coloured strip
       if (on) c.last = Date.now();
+      // 1.45: decision log — a player switching between the game's AI and an agent command, or to a new command
+      if (on && c.a !== undefined && c.a !== a && st) {   // 1.46: a new agent command for this team
+        const tm = pl[1];
+        if (tm === 0 || tm === 1) {
+          st.cmds[tm].push(g[1]); if (st.cmds[tm].length > 400) st.cmds[tm].shift();
+          const pc = st.pcmd[k] || (st.pcmd[k] = []); pc.push(g[1]); if (pc.length > 200) pc.shift();   // 1.62: per player
+        }
+      }
+      if (c.a !== undefined && (c.on !== on || (on && c.a !== a)) && !(c.at && g[1] - c.at < 0.3 && c.on === on)) {
+        evLog.push([Math.round(g[1] * 10) / 10, pl[1], pl[0], a, on ? 1 : 0]);
+        if (evLog.length > 80) evLog.shift();
+        c.at = g[1];
+      }
+      c.a = a; c.on = on;
     }
   };
   const ctlNow = () => {
@@ -309,6 +337,54 @@
     }
     return out;
   };
+  // 1.60: the kind of action — s shoot, p pass / keeper distribution, d press / intercept / mark / tackle / chase,
+  // r dribble (AdvanceToGoalWithBall), k keeper's dive, m any other move (the panel colours them alike)
+  function ACAT(a) { const x = String(a || "").replace(/^Coach/, "");
+    return /Shoot/.test(x) ? "s" : /Pass|Distribute/.test(x) ? "p" : /Press|Pressure|Intercept|Tackle|Mark|Chase/.test(x) ? "d"
+      : /Advance|Dribble/.test(x) ? "r" : /Jump/.test(x) ? "k" : "m"; }
+  // per player, the last CTL_TL seconds oldest first: the kind of action that second — a shot, else a pass, whenever there was one,
+  // else the busiest other kind if it took a quarter of the second, else "m"; "-" = no frames
+  const ctlLineA = () => {
+    const out = {}, now = Math.floor(Date.now() / 1000);
+    for (const k in ctl) {
+      const m = new Map(ctl[k].b.map(x => [x[0], x]));
+      let line = "";
+      for (let sec = now - CTL_TL + 1; sec <= now; sec++) {
+        const x = m.get(sec);
+        if (!x || !x[2] || !x[3]) { line += "-"; continue; }
+        if (x[3].s) { line += "s"; continue; }
+        if (x[3].p) { line += "p"; continue; }   // a pass is as short as a shot
+        let best = "m", bn = 0;
+        for (const c of "drk") if ((x[3][c] || 0) > bn) { best = c; bn = x[3][c]; }
+        line += bn * 4 >= x[2] ? best : "m";
+      }
+      out[k] = line;
+    }
+    return out;
+  };
+  // per player, the last CTL_TL seconds oldest first: agent share of that second as 0..9, "-" = no frames
+  const ctlLine = () => {
+    const out = {}, now = Math.floor(Date.now() / 1000);
+    for (const k in ctl) {
+      const m = new Map(ctl[k].b.map(x => [x[0], x]));
+      let line = "";
+      for (let sec = now - CTL_TL + 1; sec <= now; sec++) { const x = m.get(sec); line += x && x[2] ? Math.min(9, Math.round(9 * x[1] / x[2])) : "-"; }
+      out[k] = line;
+    }
+    return out;
+  };
+  // 1.44: live positions ~10 times a second for the panel's control pitch: who follows an agent command
+  // (Coach* action) and who the game's own AI moves. {dir, b: [x, z], h: [team, idx] | null (1.56), p: [[team, idx, x, z, agent 0/1, action, stamina]]}
+  let liveN = 0;
+  const postLive = g => {
+    if (++liveN % 4) return;
+    try {
+      const b = g[5], p = [];
+      for (const pl of g[6] || []) { const a = String(pl[8]); p.push([pl[1], pl[0], R(pl[2][0]), R(pl[2][1]), a.startsWith("Coach") ? 1 : 0, a, typeof pl[5] === "number" ? Math.round(100 * pl[5]) : null]); }
+      const h = !b[2] && b[3] != null && b[3] >= 0 && (b[6] === 0 || b[6] === 1) ? [b[6], b[3]] : null;   // 1.56: who has the ball
+      window.postMessage({ source: "drunkards-rec", type: "live", dir: st ? st.dir : 0, t: R(g[1]), b: [R(b[0][0]), R(b[0][2])], h, p, ev: evLog.slice(-80) }, location.origin);
+    } catch (e) {}
+  };
 
   // ---- Live match stats (1.28) from the rows: shots (an agent or the game turning a player to
   // ShootAtGoal / CoachShoot), possession (frames each team holds the ball), the share of play
@@ -317,9 +393,25 @@
   const XG_BY_M = [0.58, 0.28, 0.28, 0.22, 0.2, 0.2, 0.13, 0.05, 0.05, 0.05];
   const SHOOT = new Set(["ShootAtGoal", "CoachShoot"]);
   let st = null;
-  // 1.34: every shot for the panel's shot map — [gameTime, team, playerIdx, x, z, xg, goal], x / z in the
+  // 1.34: every shot for the panel's shot map — [gameTime, team, playerIdx, x, z, xg, goal, agent], x / z in the
   // shooter's frame (attacking +x towards the goal at x = 6.5); goal = 1 when that team scored within 4 s.
-  const statReset = () => { st = { dir: 0, sh: [0, 0], xg: [0, 0], hold: [0, 0], third: [0, 0], all: 0, prev: {}, at: {}, last: [], map: [], score: null }; };
+  // 1.56: agent = 1 for an agent's shot (CoachShoot), 0 for the game's own AI (ShootAtGoal).
+  // 1.56: `goals` — [gameTime, team, scorer idx, agent 1/0 (-1 unknown), distance m, assist idx (-1 none),
+  // assist agent 1/0] from the team's last shot within 4 s (every goal in 6 recorded matches had one within
+  // 1.3 s), else the team's last holder; assist = the teammate whose completed pass the scorer took within 8 s.
+  // `hag` — per player "team:idx": [frames on the ball under an agent command, frames on the ball];
+  // `tl` — per game second [frames, home holds, away holds, agent frames x10 (team*5+idx), holds x10].
+  const AG = a => typeof a === "string" && a.startsWith("Coach") ? 1 : 0;
+  const statReset = () => { st = { dir: 0, sh: [0, 0], xg: [0, 0], hold: [0, 0], third: [0, 0], all: 0, prev: {}, at: {}, last: [], map: [], score: null,
+    own: null, ownAg: -1, shot: false, pa: [0, 0], pc: [0, 0], won: [0, 0],
+    cmds: [[], []], pcmd: {}, goals: [], ls: [null, null], recv: {}, hag: {}, psh: {}, tl: [], stm: [] }; };
+  // 1.60: each player's stamina (0-100) per game second, from the full frame (rows do not carry it, so the part
+  // before a reload is not rebuilt)
+  const stamAdd = g => {
+    const sec = Math.floor(g[1]); if (!st || !(sec >= 0 && sec < 600)) return;
+    const e = st.stm[sec] || (st.stm[sec] = new Array(10).fill(null));
+    for (const pl of g[6] || []) if (typeof pl[5] === "number" && (pl[1] === 0 || pl[1] === 1) && pl[0] >= 0 && pl[0] < 5) e[pl[1] * 5 + pl[0]] = Math.round(100 * pl[5]);
+  };
   statReset();
   const statAdd = r => {
     if (!st.dir) {   // home attacks +x when it kicks off on the -x half
@@ -329,11 +421,40 @@
       st.dir = s / n < 0 ? 1 : -1;
     }
     st.all++;
+    const fa = {};   // this frame's action per player
+    for (let i = 15; i < r.length; i += 5) fa[r[i + 1] + ":" + r[i]] = acts[r[i + 4]];
     if (st.score) for (const tm of [0, 1]) if (r[4 + tm] > st.score[tm]) {   // a goal: its team's last shot within 4 s
       for (let j = st.map.length - 1; j >= 0; j--) { const m = st.map[j]; if (r[2] - m[0] > 4) break; if (m[1] === tm && !m[6]) { m[6] = 1; break; } }
+      const s = st.ls[tm];
+      if (s && r[2] - s[0] <= 4) st.goals.push([Math.round(r[2] * 10) / 10, tm, s[1], s[2], s[3], s[4], s[5]]);
+      else if (st.own && st.own[0] === tm) st.goals.push([Math.round(r[2] * 10) / 10, tm, st.own[1], st.ownAg, null, -1, -1]);
+      else st.goals.push([Math.round(r[2] * 10) / 10, tm, -1, -1, null, -1, -1]);
+      st.ls[tm] = null;
     }
+    if (st.score && (r[4] !== st.score[0] || r[5] !== st.score[1])) { st.own = null; st.shot = false; st.recv = {}; }   // goal: kick-off next
     st.score = [r[4], r[5]];
+    // 1.45: passes and turnovers from who holds the ball. A new holder after the last one: same team = a pass
+    // completed, the other team = the ball won by them (and, unless it was a shot, a pass of ours that failed).
+    const holder = r[12] === 0 && r[13] >= 0 && (r[14] === 0 || r[14] === 1) ? [r[14], r[13]] : null;
+    if (holder && (!st.own || st.own[0] !== holder[0] || st.own[1] !== holder[1])) {
+      if (st.own) {
+        if (st.own[0] === holder[0]) { if (!st.shot) { st.pa[holder[0]]++; st.pc[holder[0]]++; st.recv[holder[0] + ":" + holder[1]] = [st.own[1], st.ownAg, r[2]]; } }
+        else { if (!st.shot) st.pa[st.own[0]]++; st.won[holder[0]]++; }
+      }
+      st.own = holder; st.shot = false;
+    }
+    if (holder) {   // 1.56: who carries the ball, and whether an agent command or the game's AI moves him
+      const k = holder[0] + ":" + holder[1], ag = AG(fa[k]);
+      st.ownAg = ag;
+      const h = st.hag[k] || (st.hag[k] = [0, 0]); h[1]++; if (ag) h[0]++;
+    }
     if (r[14] === 0 || r[14] === 1) st.hold[r[14]]++;
+    const sec = Math.floor(r[2]);
+    if (sec >= 0 && sec < 600) {
+      const e = st.tl[sec] || (st.tl[sec] = new Array(23).fill(0));
+      e[0]++; if (holder) { e[1 + holder[0]]++; e[13 + holder[0] * 5 + holder[1]]++; }
+      for (const k in fa) { const [tm, ix] = k.split(":").map(Number); if ((tm === 0 || tm === 1) && ix >= 0 && ix < 5 && AG(fa[k])) e[3 + tm * 5 + ix]++; }
+    }
     const bx = r[6] * st.dir;   // + = towards the away goal
     if (bx > 6.5 / 3) st.third[0]++; else if (bx < -6.5 / 3) st.third[1]++;
     for (let i = 15; i < r.length; i += 5) {
@@ -344,19 +465,61 @@
       if (st.at[k] !== undefined && r[2] - st.at[k] < 1.5) continue;   // flicker of one shot
       st.at[k] = r[2];
       const gx = 6.5 * (tm === 0 ? st.dir : -st.dir), d = Math.hypot(gx - r[i + 2], r[i + 3]);
-      const xg = XG_BY_M[Math.min(9, Math.floor(d))];
-      st.sh[tm]++; st.xg[tm] += xg;
-      st.last.push([r[2], tm, r[i], Math.round(d * 10) / 10, xg]);
+      const xg = XG_BY_M[Math.min(9, Math.floor(d))], ag = AG(a);
+      st.sh[tm]++; st.xg[tm] += xg; st.shot = true;
+      st.last.push([r[2], tm, r[i], Math.round(d * 10) / 10, xg, ag]);
+      const ps = st.psh[k] || (st.psh[k] = [0, 0]); ps[ag ? 0 : 1]++;
+      const rc = st.recv[k], as = rc && r[2] - rc[2] <= 8 ? rc : null;
+      st.ls[tm] = [r[2], r[i], ag, Math.round(d * 10) / 10, as ? as[0] : -1, as ? as[1] : -1];
       const sx = tm === 0 ? st.dir : -st.dir;   // the shooter's frame: attacking +x
-      if (st.map.length < 80) st.map.push([Math.round(r[2] * 10) / 10, tm, r[i], Math.round(r[i + 2] * sx * 100) / 100, Math.round(r[i + 3] * sx * 100) / 100, xg, 0]);
+      if (st.map.length < 80) st.map.push([Math.round(r[2] * 10) / 10, tm, r[i], Math.round(r[i + 2] * sx * 100) / 100, Math.round(r[i + 3] * sx * 100) / 100, xg, 0, ag]);
       if (st.last.length > 5) st.last.shift();
     }
   };
+  // 1.56: the whole-match timeline, one character per game second: `pos` "0" / "1" = the team holding the ball
+  // most of that second ("-" = loose); `ag["team:idx"]` = agent share of that second 0–9; `hd["team:idx"]` = "1"
+  // when he held the ball a third of it or more; `sm["team:idx"]` (1.60) = stamina / 10 that second, 0-9. "." = no frames.
+  const tlNow = () => {
+    const n = st.tl.length, pos = [], ag = {}, hd = {}, sm = {};
+    for (let tm = 0; tm < 2; tm++) for (let ix = 0; ix < 5; ix++) {
+      ag[tm + ":" + ix] = []; hd[tm + ":" + ix] = [];
+      sm[tm + ":" + ix] = Array.from({ length: n }, (_, s) => { const v = st.stm[s] && st.stm[s][tm * 5 + ix]; return v == null ? "." : String(Math.min(9, Math.floor(v / 10))); }).join("");   // 1.60: stamina / 10
+    }
+    for (let s = 0; s < n; s++) {
+      const e = st.tl[s];
+      if (!e || !e[0]) { pos.push("."); for (const k in ag) { ag[k].push("."); hd[k].push("."); } continue; }
+      pos.push(e[1] + e[2] < e[0] * 0.3 ? "-" : e[1] >= e[2] ? "0" : "1");
+      for (let tm = 0; tm < 2; tm++) for (let ix = 0; ix < 5; ix++) {
+        const k = tm + ":" + ix;
+        ag[k].push(Math.min(9, Math.round(9 * e[3 + tm * 5 + ix] / e[0])));
+        hd[k].push(e[13 + tm * 5 + ix] * 3 >= e[0] ? "1" : "0");
+      }
+    }
+    const j = o => { for (const k in o) o[k] = o[k].join(""); return o; };
+    return { pos: pos.join(""), ag: j(ag), hd: j(hd), sm };
+  };
+  // new-command times → [count in the last 60 s, the longest gap among them and since the last one (s)]
+  const gapStat = (l, t) => { const x = l.filter(v => t - v <= 60);
+    if (!x.length) return [0, t > 5 ? Math.min(60, Math.round(t)) : null];
+    let m = t - x[x.length - 1]; for (let i = 1; i < x.length; i++) m = Math.max(m, x[i] - x[i - 1]); return [x.length, Math.round(10 * m) / 10]; };
   const statNow = () => {
     const h = st.hold[0] + st.hold[1];
     return { sh: st.sh, xg: st.xg.map(x => Math.round(x * 100) / 100),
       pos: h ? [Math.round(100 * st.hold[0] / h), 100 - Math.round(100 * st.hold[0] / h)] : null,
-      third: st.all ? st.third.map(x => Math.round(100 * x / st.all)) : null, last: st.last, map: st.map, frames: st.all };
+      third: st.all ? st.third.map(x => Math.round(100 * x / st.all)) : null, last: st.last, map: st.map, frames: st.all,
+      pass: st.pa.map((a, i) => a ? Math.round(100 * st.pc[i] / a) : null), pa: st.pa, won: st.won,
+      // 1.46: median seconds from a change of possession to the team's next new agent command (last 15),
+      // new agent commands in the last 60 s of game time, and each team's average stamina now (0–100)
+      // (a "reaction after a turnover" measure was dropped: at ~150 commands a minute any moment is followed by one
+      // within ~0.4 s, so it measured the rate, not the speed)
+      rate: st.cmds.map(l => gapStat(l, lastTime())[0]),
+      pause: st.cmds.map(l => gapStat(l, lastTime())[1]),
+      stam: stamNow,
+      // 1.62: per player "team:idx" — [new agent commands seen in the last 60 s, longest gap between them (s)],
+      // the same rule as rate / pause (a repeated same command is invisible in the stream)
+      pcmd: (() => { const o = {}, t = lastTime(); for (const k in st.pcmd) o[k] = gapStat(st.pcmd[k], t); return o; })(),
+      // 1.56: goals with scorer / assist and who moved them, ball time and shots per player, the match timeline
+      goals: st.goals, hag: st.hag, psh: st.psh, fps: st.tl.length > 2 ? Math.round(st.all / st.tl.length) : 40, tl: tlNow() };
   };
 
   // Live status for the extension's popup (bridge.js passes it on): what is recorded so far.
@@ -366,7 +529,7 @@
     window.postMessage({
       source: "drunkards-rec", type: "status", id: matchId, n: rows.length, t: lastTime(),
       t0: first ? first[2] : null, score: last ? [last[4], last[5]] : null, lastWall: last ? last[0] : null,
-      header: (meta.header || "").slice(0, 300), reloads: meta.reloads || 0, stopped, ctl: ctlNow(), st: statNow()
+      header: (meta.header || "").slice(0, 300), reloads: meta.reloads || 0, stopped, ctl: ctlNow(), ctlT: ctlLine(), ctlA: ctlLineA(), st: statNow()
     }, location.origin);
   }
   setInterval(postStatus, 2000);
@@ -482,7 +645,7 @@
       const id = m ? m[1] : "unknown-" + Date.now();
       if (id !== matchId) {
         matchId = id; rows = []; comm = []; seen.clear(); acts = []; actIdx = {}; stopped = false;
-        fresh(); ctl = {}; statReset();
+        fresh(); ctl = {}; evLog = []; statReset();
         restore(id);
       }
       ws.addEventListener("open", () => {
